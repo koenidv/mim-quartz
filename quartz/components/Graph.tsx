@@ -17,6 +17,7 @@ export interface D3Config {
   opacityScale: number
   removeTags: string[]
   showTags: boolean
+  removeFiles: string[]
   focusOnHover?: boolean
   enableRadial?: boolean
 }
@@ -40,6 +41,7 @@ const defaultOptions: GraphOptions = {
     showTags: true,
     removeTags: [],
     focusOnHover: false,
+    removeFiles: [],
     enableRadial: false,
   },
   globalGraph: {
@@ -54,6 +56,7 @@ const defaultOptions: GraphOptions = {
     opacityScale: 1,
     showTags: true,
     removeTags: [],
+    removeFiles: [],
     focusOnHover: true,
     enableRadial: true,
   },

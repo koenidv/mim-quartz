@@ -85,6 +85,7 @@ async function renderGraph(graph: HTMLElement, fullSlug: FullSlug) {
     opacityScale,
     removeTags,
     showTags,
+    removeFiles,
     focusOnHover,
     enableRadial,
   } = JSON.parse(graph.dataset["cfg"]!) as D3Config
@@ -104,7 +105,7 @@ async function renderGraph(graph: HTMLElement, fullSlug: FullSlug) {
     const outgoing = details.links ?? []
 
     for (const dest of outgoing) {
-      if (validLinks.has(dest)) {
+      if (validLinks.has(dest) && !removeFiles.includes(dest)) {
         links.push({ source: source, target: dest })
       }
     }
