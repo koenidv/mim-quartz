@@ -10,6 +10,6 @@ private/
 .replit
 replit.nix
 content/
+content
 drive-sa.json
 rclone.conf
-
