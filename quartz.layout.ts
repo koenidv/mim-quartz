@@ -33,7 +33,28 @@ export const defaultContentPageLayout: PageLayout = {
         { Component: Component.ReaderMode() },
       ],
     }),
-    Component.Explorer(),
+    Component.Explorer({
+    filterFn: (item) => !item.data?.slug.match(/^([^/]+)\/\1$/) == true,
+    sortFn: (a, b) => {
+        // Sort order: folders first, then files. Sort folders and files alphabeticall
+        if ((!a.isFolder && !b.isFolder) || (a.isFolder && b.isFolder)) {
+          // numeric: true: Whether numeric collation should be used, such that "1" < "2" < "10"
+          // sensitivity: "base": Only strings that differ in base letters compare as unequal. Examples: a ≠ b, a = á, a = A
+          console.log(a, b.data?.date)
+          return a.data?.date?.toString().localeCompare(b.data?.date?.toString() ?? "", undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }) ?? 0
+          
+        }
+
+        if (!a.isFolder && b.isFolder) {
+          return 1
+        } else {
+          return -1
+        }
+      }
+    }),
   ],
   right: [
     Component.Graph({
