@@ -17,7 +17,7 @@ const config: QuartzConfig = {
     },
     locale: "en-US",
     baseUrl: "mim.koeni.dev",
-    ignorePatterns: ["private", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "GEMINI.md"],
+    ignorePatterns: ["private", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "GEMINI.md", "Session Note *"],
     defaultDateType: "modified",
     theme: {
       fontOrigin: "googleFonts",
