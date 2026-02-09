@@ -80,7 +80,22 @@ export const defaultContentPageLayout: PageLayout = {
       }
     }),
     Component.DesktopOnly(Component.TableOfContents()),
-    Component.Backlinks(),
+    Component.ConditionalRender({
+      component: Component.Backlinks(),
+      condition: (page) => {
+        const slug = page.fileData.slug
+        if (slug === "index") return false
+        if (slug?.endsWith("/index")) {
+          const path = page.fileData.filePath
+          if (!path) return false
+          const parts = slug.split("/")
+          const folderName = parts[parts.length - 2]
+          const fileName = path.split("/").pop()?.replace(/\.md$/, "")
+          return folderName.toLowerCase() === fileName?.toLowerCase()
+        }
+        return true
+      },
+    }),
   ],
 }
 
@@ -146,6 +161,21 @@ export const defaultListPageLayout: PageLayout = {
       },
     }),
     Component.DesktopOnly(Component.TableOfContents()),
-    Component.Backlinks(),
+    Component.ConditionalRender({
+      component: Component.Backlinks(),
+      condition: (page) => {
+        const slug = page.fileData.slug
+        if (slug === "index") return false
+        if (slug?.endsWith("/index")) {
+          const path = page.fileData.filePath
+          if (!path) return false
+          const parts = slug.split("/")
+          const folderName = parts[parts.length - 2]
+          const fileName = path.split("/").pop()?.replace(/\.md$/, "")
+          return folderName.toLowerCase() === fileName?.toLowerCase()
+        }
+        return true
+      },
+    }),
   ],
 }
