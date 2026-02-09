@@ -34,18 +34,28 @@ export const defaultContentPageLayout: PageLayout = {
       ],
     }),
     Component.Explorer({
-    filterFn: (item) => !item.data?.slug.match(/^([^/]+)\/\1$/) == true,
-    sortFn: (a, b) => {
-        // Sort order: folders first, then files. Sort folders and files alphabeticall
-        if ((!a.isFolder && !b.isFolder) || (a.isFolder && b.isFolder)) {
-          // numeric: true: Whether numeric collation should be used, such that "1" < "2" < "10"
-          // sensitivity: "base": Only strings that differ in base letters compare as unequal. Examples: a ≠ b, a = á, a = A
-          console.log(a, b.data?.date)
-          return a.data?.date?.toString().localeCompare(b.data?.date?.toString() ?? "", undefined, {
+      filterFn: (item) => !item.data?.slug.match(/^([^/]+)\/\1$/) == true,
+      sortFn: (a, b) => {
+        if (a.isFolder && b.isFolder) {
+          return a.displayName.localeCompare(b.displayName, undefined, {
             numeric: true,
             sensitivity: "base",
-          }) ?? 0
-          
+          })
+        }
+
+        if (!a.isFolder && !b.isFolder) {
+          if (a.data?.date && b.data?.date) {
+            return new Date(a.data.date).getTime() - new Date(b.data.date).getTime()
+          } else if (a.data?.date && !b.data?.date) {
+            return -1
+          } else if (!a.data?.date && b.data?.date) {
+            return 1
+          }
+
+          return a.displayName.localeCompare(b.displayName, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          })
         }
 
         if (!a.isFolder && b.isFolder) {
@@ -53,7 +63,7 @@ export const defaultContentPageLayout: PageLayout = {
         } else {
           return -1
         }
-      }
+      },
     }),
   ],
   right: [
@@ -89,7 +99,53 @@ export const defaultListPageLayout: PageLayout = {
         { Component: Component.Darkmode() },
       ],
     }),
-    Component.Explorer(),
+    Component.Explorer({
+      filterFn: (item) => !item.data?.slug.match(/^([^/]+)\/\1$/) == true,
+      sortFn: (a, b) => {
+        if (a.isFolder && b.isFolder) {
+          return a.displayName.localeCompare(b.displayName, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          })
+        }
+
+        if (!a.isFolder && !b.isFolder) {
+          if (a.data?.date && b.data?.date) {
+            return new Date(a.data.date).getTime() - new Date(b.data.date).getTime()
+          } else if (a.data?.date && !b.data?.date) {
+            return -1
+          } else if (!a.data?.date && b.data?.date) {
+            return 1
+          }
+
+          return a.displayName.localeCompare(b.displayName, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          })
+        }
+
+        if (!a.isFolder && b.isFolder) {
+          return 1
+        } else {
+          return -1
+        }
+      },
+    }),
   ],
-  right: [],
+  right: [
+    Component.Graph({
+      localGraph: {
+        removeTags: ["TUM"],
+        removeFiles: [],
+      },
+      globalGraph: {
+        removeTags: ["TUM"],
+        removeFiles: [],
+        scale: 1,
+        linkDistance: 20,
+      },
+    }),
+    Component.DesktopOnly(Component.TableOfContents()),
+    Component.Backlinks(),
+  ],
 }
