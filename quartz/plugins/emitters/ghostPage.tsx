@@ -113,6 +113,10 @@ export const GhostPage: QuartzEmitterPlugin<Partial<GhostPageOptions>> = (userOp
       }
 
       for (const [slug, backlinks] of ghostLinks) {
+        if (backlinks.size <= 1) {
+          continue
+        }
+
         const isDir = simplifiedSlugs.some((s) => s.startsWith(slug + "/"))
         const emitSlug = (isDir ? (joinSegments(slug, "index") as FullSlug) : slug) as FullSlug
 

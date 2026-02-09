@@ -131,7 +131,7 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
         allFilesOnDisk.map((fp) => stripSlashes(simplifySlug(slugifyFilePath(fp as FilePath)))),
       )
 
-      const ghostSlugs = new Set<SimpleSlug>()
+      const ghostSlugs = new Map<SimpleSlug, Set<string>>()
 
       for (const details of linkIndex.values()) {
         if (details.slug === "index") continue
@@ -158,13 +158,20 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
               link.endsWith(".mp4") ||
               link.endsWith(".mp3")
             if (!isAsset) {
-              ghostSlugs.add(link)
+              if (!ghostSlugs.has(link)) {
+                ghostSlugs.set(link, new Set())
+              }
+              ghostSlugs.get(link)!.add(details.slug)
             }
           }
         }
       }
 
-      for (const slug of ghostSlugs) {
+      for (const [slug, backlinks] of ghostSlugs) {
+        if (backlinks.size <= 1) {
+          continue
+        }
+
         const isDir = simplifiedSlugs.some((s) => s.startsWith(slug + "/"))
         const fullSlug = (isDir ? (joinSegments(slug, "index") as FullSlug) : slug) as FullSlug
         
