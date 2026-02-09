@@ -2,11 +2,12 @@ import { Root } from "hast"
 import { GlobalConfiguration } from "../../cfg"
 import { getDate } from "../../components/Date"
 import { escapeHTML } from "../../util/escape"
-import { FilePath, FullSlug, SimpleSlug, joinSegments, simplifySlug, stripSlashes } from "../../util/path"
+import { FilePath, FullSlug, SimpleSlug, joinSegments, simplifySlug, stripSlashes, slugifyFilePath } from "../../util/path"
 import { QuartzEmitterPlugin } from "../types"
 import { toHtml } from "hast-util-to-html"
 import { write } from "./helpers"
 import { i18n } from "../../i18n"
+import { glob } from "../../util/glob"
 
 export type ContentIndexMap = Map<FullSlug, ContentDetails>
 export type ContentDetails = {
@@ -123,6 +124,13 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
       const simplifiedSlugs = Array.from(linkIndex.keys()).map((s) => simplifySlug(s))
       const existingSlugs = new Set(simplifiedSlugs)
       const existingSlugsNormalized = new Set(simplifiedSlugs.map((s) => stripSlashes(s)))
+
+      // Identify ALL files on disk to find which ones were ignored
+      const allFilesOnDisk = await glob("**/*.md", ctx.argv.directory, [])
+      const allSlugsOnDisk = new Set(
+        allFilesOnDisk.map((fp) => stripSlashes(simplifySlug(slugifyFilePath(fp as FilePath)))),
+      )
+
       const ghostSlugs = new Set<SimpleSlug>()
 
       for (const details of linkIndex.values()) {
@@ -131,6 +139,14 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
         for (const link of details.links) {
           const normalizedLink = stripSlashes(link)
           if (!existingSlugsNormalized.has(normalizedLink) && !link.startsWith("tags/")) {
+            // Check if it matches any file on disk (including ignored ones)
+            const isIgnored = Array.from(allSlugsOnDisk).some(
+              (s) => s === normalizedLink || s.endsWith("/" + normalizedLink),
+            )
+            if (isIgnored) {
+              continue
+            }
+
             // Ignore common asset extensions
             const isAsset =
               link.endsWith(".png") ||

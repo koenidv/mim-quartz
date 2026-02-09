@@ -5,13 +5,15 @@ import BodyConstructor from "../../components/Body"
 import { pageResources, renderPage } from "../../components/renderPage"
 import { QuartzPluginData, defaultProcessedContent } from "../vfile"
 import { FullPageLayout } from "../../cfg"
-import { FullSlug, pathToRoot, simplifySlug, SimpleSlug, joinSegments, stripSlashes } from "../../util/path"
+import { FullSlug, pathToRoot, simplifySlug, SimpleSlug, joinSegments, stripSlashes, slugifyFilePath } from "../../util/path"
 import { defaultListPageLayout, sharedPageComponents } from "../../../quartz.layout"
 import { PageList } from "../../components"
 import { write } from "./helpers"
 import { BuildCtx } from "../../util/ctx"
 import { StaticResources } from "../../util/resources"
 import { i18n } from "../../i18n"
+
+import { glob } from "../../util/glob"
 
 interface GhostPageOptions extends FullPageLayout {}
 
@@ -67,6 +69,13 @@ export const GhostPage: QuartzEmitterPlugin<Partial<GhostPageOptions>> = (userOp
       const existingSlugs = new Set(simplifiedSlugs)
       const existingSlugsNormalized = new Set(simplifiedSlugs.map((s) => stripSlashes(s)))
       const fullSlugs = new Set(allFiles.map((f) => f.slug!))
+
+      // Identify ALL files on disk to find which ones were ignored
+      const allFilesOnDisk = await glob("**/*.md", ctx.argv.directory, [])
+      const allSlugsOnDisk = new Set(
+        allFilesOnDisk.map((fp) => stripSlashes(simplifySlug(slugifyFilePath(fp as FilePath)))),
+      )
+
       const ghostLinks = new Map<SimpleSlug, Set<QuartzPluginData>>()
 
       for (const file of allFiles) {
@@ -75,6 +84,15 @@ export const GhostPage: QuartzEmitterPlugin<Partial<GhostPageOptions>> = (userOp
         for (const link of file.links ?? []) {
           const normalizedLink = stripSlashes(link)
           if (!existingSlugsNormalized.has(normalizedLink) && !link.startsWith("tags/")) {
+            // Check if it matches any file on disk (including ignored ones)
+            // We check both exact match and tail match (for files in subfolders)
+            const isIgnored = Array.from(allSlugsOnDisk).some(
+              (s) => s === normalizedLink || s.endsWith("/" + normalizedLink),
+            )
+            if (isIgnored) {
+              continue
+            }
+
             const isAsset =
               link.endsWith(".png") ||
               link.endsWith(".jpg") ||
