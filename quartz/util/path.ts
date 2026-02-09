@@ -72,16 +72,27 @@ function sluggify(s: string): string {
 export function slugifyFilePath(fp: FilePath, excludeExt?: boolean): FullSlug {
   fp = stripSlashes(fp) as FilePath
   let ext = getFileExtension(fp)
-  const withoutFileExt = fp.replace(new RegExp(ext + "$"), "")
-  if (excludeExt || [".md", ".html", undefined].includes(ext)) {
-    ext = ""
-  }
+  const withoutFileExt = ext ? fp.replace(new RegExp(ext + "$"), "") : fp
 
   let slug = sluggify(withoutFileExt)
 
   // treat _index as index
   if (endsWith(slug, "_index")) {
     slug = slug.replace(/_index$/, "index")
+  }
+
+  if (excludeExt || [".md", ".html", undefined].includes(ext)) {
+    const segments = slug.split("/")
+    if (segments.length >= 2) {
+      const last = segments[segments.length - 1]
+      const secondLast = segments[segments.length - 2]
+      if (last.toLowerCase() === secondLast.toLowerCase()) {
+        segments[segments.length - 1] = "index"
+        slug = segments.join("/")
+      }
+    }
+
+    ext = ""
   }
 
   return (slug + ext) as FullSlug
