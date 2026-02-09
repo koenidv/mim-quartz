@@ -2176,7 +2176,7 @@ body:not(.callout-no-metadata) .callout.callout[data-callout~=Metadata i][data-c
 .callout.callout.callout {
   --callout-blend-mode: normal;
   margin: var(--callout-margin);
-  z-index: 1;
+  z-index: 0;
   position: relative;
 }
 
