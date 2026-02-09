@@ -2,7 +2,7 @@ import { Root } from "hast"
 import { GlobalConfiguration } from "../../cfg"
 import { getDate } from "../../components/Date"
 import { escapeHTML } from "../../util/escape"
-import { FilePath, FullSlug, SimpleSlug, joinSegments, simplifySlug } from "../../util/path"
+import { FilePath, FullSlug, SimpleSlug, joinSegments, simplifySlug, stripSlashes } from "../../util/path"
 import { QuartzEmitterPlugin } from "../types"
 import { toHtml } from "hast-util-to-html"
 import { write } from "./helpers"
@@ -117,6 +117,55 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
             description: file.data.description ?? "",
           })
         }
+      }
+
+      // Add ghost pages to the index so they show up in the graph
+      const simplifiedSlugs = Array.from(linkIndex.keys()).map((s) => simplifySlug(s))
+      const existingSlugs = new Set(simplifiedSlugs)
+      const existingSlugsNormalized = new Set(simplifiedSlugs.map((s) => stripSlashes(s)))
+      const ghostSlugs = new Set<SimpleSlug>()
+
+      for (const details of linkIndex.values()) {
+        if (details.slug === "index") continue
+
+        for (const link of details.links) {
+          const normalizedLink = stripSlashes(link)
+          if (!existingSlugsNormalized.has(normalizedLink) && !link.startsWith("tags/")) {
+            // Ignore common asset extensions
+            const isAsset =
+              link.endsWith(".png") ||
+              link.endsWith(".jpg") ||
+              link.endsWith(".jpeg") ||
+              link.endsWith(".gif") ||
+              link.endsWith(".svg") ||
+              link.endsWith(".pdf") ||
+              link.endsWith(".mp4") ||
+              link.endsWith(".mp3")
+            if (!isAsset) {
+              ghostSlugs.add(link)
+            }
+          }
+        }
+      }
+
+      for (const slug of ghostSlugs) {
+        const isDir = simplifiedSlugs.some((s) => s.startsWith(slug + "/"))
+        const fullSlug = (isDir ? (joinSegments(slug, "index") as FullSlug) : slug) as FullSlug
+        
+        if (linkIndex.has(fullSlug) || existingSlugs.has(fullSlug as unknown as SimpleSlug)) {
+          continue
+        }
+
+        const title = slug.split("/").pop()?.replace(/-/g, " ") || slug
+        linkIndex.set(fullSlug, {
+          slug: fullSlug,
+          filePath: "" as FilePath,
+          title: title,
+          links: [],
+          tags: [],
+          content: "",
+          date: new Date(),
+        })
       }
 
       if (opts?.enableSiteMap) {
