@@ -1,3 +1,8 @@
+# Publishing: Flo's Notes on MiM at TUM
+
+cron 0 4 * * *: `cd usr/app/serve && git fetch && git reset --hard origin/main && rm -rf ./content && rclone --config rclone.conf copy drive-tum-notes: ./content && npx quartz build`
+
+
 # Creme brulee
 
 - Theme: Creme brulee

@@ -426,7 +426,7 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
               }
 
               const text = firstChild.children[0].value
-              const restOfTitle = firstChild.children.slice(1)
+              const restOfParagraph = firstChild.children.slice(1)
               const [firstLine, ...remainingLines] = text.split("\n")
               const remainingText = remainingLines.join("\n")
 
@@ -436,8 +436,27 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
                 const calloutType = canonicalizeCallout(typeString.toLowerCase())
                 const collapse = collapseChar === "+" || collapseChar === "-"
                 const defaultState = collapseChar === "-" ? "collapsed" : "expanded"
-                const titleContent = match.input.slice(calloutDirective.length).trim()
-                const useDefaultTitle = titleContent === "" && restOfTitle.length === 0
+                const titleText = match.input.slice(calloutDirective.length).trim()
+
+                // Partition the rest of the paragraph into title and content
+                const titleChildren: PhrasingContent[] = []
+                const inlineContentChildren: PhrasingContent[] = []
+                let foundNewline = remainingLines.length > 0
+
+                for (const child of restOfParagraph) {
+                  if (foundNewline) {
+                    inlineContentChildren.push(child)
+                  } else if (
+                    child.type === "break" ||
+                    (child.type === "html" && child.value === "<br />")
+                  ) {
+                    foundNewline = true
+                  } else {
+                    titleChildren.push(child)
+                  }
+                }
+
+                const useDefaultTitle = titleText === "" && titleChildren.length === 0
                 const titleNode: Paragraph = {
                   type: "paragraph",
                   children: [
@@ -445,9 +464,9 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
                       type: "text",
                       value: useDefaultTitle
                         ? capitalize(typeString).replace(/-/g, " ")
-                        : titleContent + " ",
+                        : titleText + (titleChildren.length > 0 ? " " : ""),
                     },
-                    ...restOfTitle,
+                    ...titleChildren,
                   ],
                 }
                 const title = mdastToHtml(titleNode)
@@ -466,15 +485,19 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
                 }
 
                 const blockquoteContent: (BlockContent | DefinitionContent)[] = [titleHtml]
+                const actualCalloutContent = [...calloutContent]
+
+                // Add remaining text and children from the first paragraph to content
+                const firstParagraphContent: PhrasingContent[] = []
                 if (remainingText.length > 0) {
-                  blockquoteContent.push({
+                  firstParagraphContent.push({ type: "text", value: remainingText })
+                }
+                firstParagraphContent.push(...inlineContentChildren)
+
+                if (firstParagraphContent.length > 0) {
+                  actualCalloutContent.unshift({
                     type: "paragraph",
-                    children: [
-                      {
-                        type: "text",
-                        value: remainingText,
-                      },
-                    ],
+                    children: firstParagraphContent,
                   })
                 }
 
@@ -482,19 +505,19 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
                 // two nested HTML <div>s (use some hacked mdhast component to achieve this) of
                 // class `callout-content` and `callout-content-inner` respectively for
                 // grid-based collapsible animation.
-                if (calloutContent.length > 0) {
-                  node.children = [
-                    node.children[0],
-                    {
-                      data: { hProperties: { className: ["callout-content"] }, hName: "div" },
-                      type: "blockquote",
-                      children: [...calloutContent],
+                if (actualCalloutContent.length > 0) {
+                  blockquoteContent.push({
+                    data: {
+                      hProperties: { className: ["callout-content"] },
+                      hName: "div",
                     },
-                  ]
+                    type: "blockquote",
+                    children: actualCalloutContent as (BlockContent | DefinitionContent)[],
+                  })
                 }
 
                 // replace first line of blockquote with title and rest of the paragraph text
-                node.children.splice(0, 1, ...blockquoteContent)
+                node.children = blockquoteContent
 
                 const classNames = ["callout", calloutType]
                 if (collapse) {
