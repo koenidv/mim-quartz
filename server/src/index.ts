@@ -167,7 +167,7 @@ app.use((req, res, next) => {
   if (isProtected) {
     console.log(`[Auth] PROTECTED: ${originalPath}`);
     if (req.isAuthenticated()) {
-      console.log(`[Auth] AUTHORIZED: ${req.user?.email}`);
+      console.log(`[Auth] AUTHORIZED: ${(req.user as any)?.email}`);
       return next();
     } else {
       console.log(`[Auth] BLOCKED: Redirecting to login`);
