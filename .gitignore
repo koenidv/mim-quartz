@@ -13,3 +13,4 @@ content/
 content
 drive-sa.json
 rclone.conf
+.env

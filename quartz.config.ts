@@ -21,6 +21,9 @@ const config: QuartzConfig = {
     baseUrl: "mim.koeni.dev",
     ignorePatterns: ["private", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "GEMINI.md", "Session Note *"],
     defaultDateType: "modified",
+    accessControl: {
+      protectedRoutes: ["**/Slides/**", "**/videos/**"],
+    },
     theme: {
       fontOrigin: "googleFonts",
       cdnCaching: true,
