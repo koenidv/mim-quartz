@@ -86,22 +86,33 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Load Quartz configuration
-let protectedRoutes: string[] = [];
-try {
-  const configPath = path.resolve(__dirname, '../../quartz.config.ts');
-  const configContent = fs.readFileSync(configPath, 'utf-8');
-  // Improved regex to handle array of strings more robustly
-  const arrayContentMatch = configContent.match(/protectedRoutes:\s*\[([\s\S]*?)\]/);
-  if (arrayContentMatch && arrayContentMatch[1]) {
-    const rawItems = arrayContentMatch[1].match(/(['"])(?:(?=(\\?))\2.)*?\1/g);
-    if (rawItems) {
-      protectedRoutes = rawItems.map(s => s.slice(1, -1));
+// Function to load Quartz configuration dynamically
+function getProtectedRoutes() {
+  try {
+    const configPath = path.resolve(__dirname, '../../quartz.config.ts');
+    if (!fs.existsSync(configPath)) {
+        // Try root relative to CWD as well
+        const rootConfigPath = path.resolve(process.cwd(), '../quartz.config.ts');
+        if (!fs.existsSync(rootConfigPath)) return [];
+        return parseProtectedRoutes(rootConfigPath);
     }
+    return parseProtectedRoutes(configPath);
+  } catch (err) {
+    console.error('Error reloading quartz.config.ts:', err);
   }
-  console.log('Loaded protected routes via regex:', protectedRoutes);
-} catch (err) {
-  console.error('Failed to load quartz.config.ts via regex:', err);
+  return [];
+}
+
+function parseProtectedRoutes(configPath: string) {
+    const configContent = fs.readFileSync(configPath, 'utf-8');
+    const arrayContentMatch = configContent.match(/protectedRoutes:\s*\[([\s\S]*?)\]/);
+    if (arrayContentMatch && arrayContentMatch[1]) {
+      const rawItems = arrayContentMatch[1].match(/(['"])(?:(?=(\\?))\2.)*?\1/g);
+      if (rawItems) {
+        return rawItems.map(s => s.slice(1, -1));
+      }
+    }
+    return [];
 }
 
 // Auth routes
@@ -139,14 +150,10 @@ app.use((req, res, next) => {
   // Normalize path: remove leading slash
   let urlPath = originalPath.startsWith('/') ? originalPath.substring(1) : originalPath;
   
-  // Debug log
-  console.log(`[Request] ${req.method} ${originalPath} (Normalized: "${urlPath}")`);
+  // Load protected routes dynamically on every request
+  const protectedRoutes = getProtectedRoutes();
 
   const isProtected = protectedRoutes.some(pattern => {
-    // We check:
-    // 1. The path itself (e.g. "private/secret.html")
-    // 2. The path with .html appended (for clean URLs)
-    // 3. The path with /index.html appended (for directory-style URLs)
     const pathsToTest = [urlPath];
     if (urlPath === '' || urlPath.endsWith('/')) {
       pathsToTest.push(urlPath + 'index.html');
@@ -157,7 +164,6 @@ app.use((req, res, next) => {
 
     const match = pathsToTest.some(p => {
       const m = minimatch(p, pattern, { dot: true, nocomment: true, nocase: true });
-      if (m) console.log(`  [Match] Path "${p}" matched pattern "${pattern}" (case-insensitive)`);
       return m;
     });
 
@@ -167,7 +173,6 @@ app.use((req, res, next) => {
   if (isProtected) {
     console.log(`[Auth] PROTECTED: ${originalPath}`);
     if (req.isAuthenticated()) {
-      console.log(`[Auth] AUTHORIZED: ${(req.user as any)?.email}`);
       return next();
     } else {
       console.log(`[Auth] BLOCKED: Redirecting to login`);
@@ -176,12 +181,27 @@ app.use((req, res, next) => {
     }
   }
 
-  console.log(`[Auth] PUBLIC: ${originalPath}`);
   next();
 });
 
-// Serve static files from public directory
-const publicDir = path.resolve(__dirname, '../../public');
+// Serve static files
+// We resolve publicDir relative to the project root
+const publicDir = path.resolve(process.cwd(), '../public');
+console.log(`Serving static files from: ${publicDir}`);
+
+// Verify publicDir contents once on start
+try {
+    if (fs.existsSync(publicDir)) {
+        const files = fs.readdirSync(publicDir);
+        console.log(`Found ${files.length} items in public directory.`);
+        if (files.length < 5) console.log('Items:', files);
+    } else {
+        console.warn(`WARNING: Public directory does not exist: ${publicDir}`);
+    }
+} catch (e) {
+    console.error('Error reading public directory:', e);
+}
+
 app.use(express.static(publicDir, {
   extensions: ['html'],
   index: 'index.html'
@@ -189,11 +209,30 @@ app.use(express.static(publicDir, {
 
 // Fallback for SPA or other routes
 app.get('*', (req, res) => {
+  const originalPath = req.path;
+  let urlPath = originalPath.startsWith('/') ? originalPath.substring(1) : originalPath;
+  
+  // Try to find the file manually if express.static missed it
+  const possiblePaths = [
+    path.join(publicDir, urlPath),
+    path.join(publicDir, urlPath + '.html'),
+    path.join(publicDir, urlPath, 'index.html')
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+      console.log(`[404-Fix] Manual match found for ${originalPath} at ${p}`);
+      return res.sendFile(p);
+    }
+  }
+
   const indexPath = path.join(publicDir, 'index.html');
+  console.log(`[404] Resource not found: ${req.path}.`);
+  
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(404).send('Not Found');
+    res.status(404).send(`<h1>Not Found</h1><p>The requested resource <code>${req.path}</code> was not found.</p>`);
   }
 });
 
