@@ -8,11 +8,11 @@ RUN curl https://rclone.org/install.sh | bash
 # 2. Copy code
 COPY . .
 
-# 3. Install ALL dependencies into one root node_modules
+# 3. Install dependencies
 RUN npm install --legacy-peer-deps
 
 EXPOSE 3000
 
 # 4. Start Command
-# Using 'npx' ensures binaries are found in the local node_modules
-CMD ["sh", "-c", "cat package.json && npx tsx scripts/db-init.ts && npx tsx scripts/auth-server.ts"]
+# Added 'ls -R' to debug exactly what files exist at runtime
+CMD ["sh", "-c", "ls -R auth-system && npx tsx auth-system/db-init.ts && npx tsx auth-system/auth-server.ts"]
