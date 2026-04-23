@@ -39,14 +39,85 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serve static files immediately for performance
-// This skips the auth middleware for common static assets like images, CSS, and JS
+function isRouteProtected(reqPath: string) {
+  const decodedPath = decodeURIComponent(reqPath.split('?')[0]);
+  const urlPath = decodedPath.startsWith('/') ? decodedPath.substring(1) : decodedPath;
+  const protectedRoutes = getProtectedRoutes();
+  return protectedRoutes.some(pattern => {
+    const tests = [urlPath, urlPath + '.html', path.join(urlPath, 'index.html')];
+    return tests.some(p => minimatch(p, pattern, { dot: true, nocase: true }));
+  });
+}
+
+// Global middleware to handle auth and routing
 app.use((req, res, next) => {
-  const ext = path.extname(req.path).toLowerCase();
-  // If it's a known static asset (not a page), serve it directly
-  if (ext && ext !== '.html') {
+  const reqPath = req.path;
+
+  // 1. Skip auth for internal system routes
+  if (
+    reqPath.startsWith('/auth/') || 
+    reqPath === '/health' || 
+    reqPath === '/logout' || 
+    reqPath === '/request-access' || 
+    reqPath.startsWith('/admin') || 
+    reqPath === '/unauthorized' ||
+    reqPath === '/index.css' ||
+    reqPath.startsWith('/static/')
+  ) {
+    return next();
+  }
+
+  const isProtected = isRouteProtected(reqPath);
+
+  // 2. Fast Path for non-protected static assets (images, scripts, etc.)
+  const ext = path.extname(reqPath).toLowerCase();
+  const isStaticAsset = ext && ext !== '.html';
+  
+  if (isStaticAsset && !isProtected) {
     return express.static(publicDir)(req, res, next);
   }
+
+  // 3. Authorization Logic for Pages and Protected Assets
+  if (isProtected) {
+    if (!req.isAuthenticated()) {
+      console.log(`[Auth] Protected route hit (unauthenticated): ${req.originalUrl}. Setting returnTo and redirecting to login.`);
+      (req.session as any).returnTo = req.originalUrl;
+      return req.session.save((err) => {
+        if (err) console.error('[Auth] Session save error in middleware:', err);
+        res.redirect('/auth/google');
+      });
+    }
+
+    const user = req.user as any;
+    if (user.role !== 'admin' && user.role !== 'approved') {
+      console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
+      
+      // If it's a static asset (PDF/Video) that is protected, we can't show the "Request Access" HTML
+      // We should probably redirect to a themed page that explains this
+      if (isStaticAsset) {
+        return res.status(403).send(renderPage('Access Restricted', `
+          <div class="card">
+            <h1>Access Restricted</h1>
+            <p>The resource <strong>${decodedPath}</strong> is protected.</p>
+            <p>You need to be an approved user to view this file.</p>
+            <form action="/request-access" method="POST">
+              <button type="submit">Request Access</button>
+            </form>
+          </div>
+        `));
+      }
+
+      const content = user.access_requested 
+        ? `<h1>Request Pending</h1><p>Your request for access to <strong>${req.path}</strong> is currently being reviewed by an administrator.</p><p>We will notify you once you have been approved.</p>`
+        : `<h1>Access Restricted</h1><p>You need to be an approved user to view <strong>${req.path}</strong>.</p>
+           <form action="/request-access" method="POST">
+             <button type="submit">Request Access</button>
+           </form>`;
+      
+      return res.status(403).send(renderPage('Access Restricted', `<div class="card">${content}</div>`));
+    }
+  }
+
   next();
 });
 
@@ -327,42 +398,6 @@ app.post('/admin/users/decline', async (req, res) => {
   const { email } = req.body;
   await pool.query('UPDATE users SET access_requested = false WHERE email = $1', [email]);
   res.redirect('/admin');
-});
-
-app.use((req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path === '/health' || req.path === '/logout' || req.path === '/request-access' || req.path.startsWith('/admin') || req.path === '/unauthorized') return next();
-  
-  const decodedPath = decodeURIComponent(req.path.split('?')[0]);
-  const urlPath = decodedPath.startsWith('/') ? decodedPath.substring(1) : decodedPath;
-  const protectedRoutes = getProtectedRoutes();
-  const isProtected = protectedRoutes.some(pattern => {
-    const tests = [urlPath, urlPath + '.html', path.join(urlPath, 'index.html')];
-    return tests.some(p => minimatch(p, pattern, { dot: true, nocase: true }));
-  });
-if (isProtected) {
-  if (!req.isAuthenticated()) {
-    console.log(`[Auth] Protected route hit (unauthenticated): ${req.originalUrl}. Setting returnTo and redirecting to login.`);
-    (req.session as any).returnTo = req.originalUrl;
-    return req.session.save((err) => {
-      if (err) console.error('[Auth] Session save error in middleware:', err);
-      res.redirect('/auth/google');
-    });
-  }
-
-  const user = req.user as any;
-  if (user.role !== 'admin' && user.role !== 'approved') {
-    console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
-    const content = user.access_requested 
-        ? `<h1>Request Pending</h1><p>Your request for access to <strong>${req.path}</strong> is currently being reviewed by an administrator.</p><p>We will notify you once you have been approved.</p>`
-        : `<h1>Access Restricted</h1><p>You need to be an approved user to view <strong>${req.path}</strong>.</p>
-           <form action="/request-access" method="POST">
-             <button type="submit">Request Access</button>
-           </form>`;
-      
-      return res.status(403).send(renderPage('Access Restricted', `<div class="card">${content}</div>`));
-    }
-  }
-  next();
 });
 
 app.use(express.static(publicDir, { extensions: ['html'], index: 'index.html' }));
