@@ -18,8 +18,8 @@
     "format": "npx prettier . --write",
     "test": "tsx --test",
     "profile": "0x -D prof ./quartz/bootstrap-cli.mjs build --concurrency=1",
-    "db-init": "tsx scripts/db-init.ts",
-    "start-auth": "tsx scripts/auth-server.ts"
+    "db-init": "npx tsx scripts/db-init.ts",
+    "start-auth": "npx tsx scripts/auth-server.ts"
   },
   "engines": {
     "npm": ">=10.9.2",
