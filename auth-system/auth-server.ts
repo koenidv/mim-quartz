@@ -25,6 +25,8 @@ const PgSession = connectPgSimple(session);
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.use(express.urlencoded({ extended: true }));
+
 app.get('/health', (req, res) => res.send('OK'));
 
 app.use(session({
@@ -48,14 +50,25 @@ passport.use(new GoogleStrategy({
     const email = profile.emails?.[0].value;
     if (!email) return done(null, false);
     try {
-      const result = await pool.query('SELECT * FROM allowed_users WHERE email = $1', [email]);
-      return result.rows.length > 0 ? done(null, { email }) : done(null, false);
+      // Upsert user: keep everyone logged in!
+      const result = await pool.query(
+        "INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING *",
+        [email]
+      );
+      return done(null, result.rows[0]);
     } catch (err) { return done(err); }
   }
 ));
 
 passport.serializeUser((user: any, done) => done(null, user.email));
-passport.deserializeUser((email: string, done) => done(null, { email }));
+passport.deserializeUser(async (email: string, done) => {
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    done(null, result.rows[0]);
+  } catch (err) {
+    done(err);
+  }
+});
 
 function getProtectedRoutes() {
   try {
@@ -70,25 +83,211 @@ function getProtectedRoutes() {
   return [];
 }
 
+// Layout helper for styled pages
+function renderPage(title: string, content: string) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} | Flo's Notes</title>
+  <link rel="stylesheet" href="/index.css">
+  <style>
+    :root {
+      --font-body: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-header: "Schibsted Grotesk", sans-serif;
+    }
+    body { 
+      font-family: var(--font-body); 
+      background-color: var(--light); 
+      color: var(--dark); 
+      padding: 2rem; 
+      max-width: 800px; 
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { font-family: var(--font-header); color: var(--secondary); }
+    a { color: var(--tertiary); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+    a:hover { border-color: var(--tertiary); }
+    .card { 
+      border: 1px solid var(--lightgray); 
+      padding: 2.5rem; 
+      border-radius: 12px; 
+      background: var(--light); 
+      box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+      margin-top: 2rem;
+    }
+    button, .button { 
+      background: var(--secondary); 
+      color: var(--light);
+      border: none; 
+      padding: 0.8rem 1.5rem; 
+      border-radius: 6px; 
+      font-family: var(--font-header); 
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      display: inline-block;
+      transition: opacity 0.2s;
+    }
+    button:hover, .button:hover { opacity: 0.9; color: var(--light); }
+    button:disabled { background: var(--gray); cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: 2rem; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid var(--lightgray); padding: 1rem; text-align: left; }
+    th { color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .status-badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .status-requested { background: #fff3cd; color: #856404; }
+    .status-approved { background: #d4edda; color: #155724; }
+    .status-admin { background: #cce5ff; color: #004085; }
+    .nav { margin-bottom: 2rem; display: flex; gap: 1rem; align-items: center; }
+    .nav-spacer { flex-grow: 1; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/" style="font-weight: bold; color: var(--secondary);">Flo's Notes</a>
+    <div class="nav-spacer"></div>
+    <a href="/logout">Logout</a>
+  </div>
+  ${content}
+</body>
+</html>
+  `;
+}
+
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/unauthorized' }), (req, res) => {
   const returnTo = (req.session as any).returnTo || '/';
   delete (req.session as any).returnTo;
   res.redirect(returnTo);
 });
-app.get('/unauthorized', (req, res) => res.status(403).send('<h1>Unauthorized</h1><p>Your email is not on the allowed list. Please contact the administrator.</p>'));
+
+app.get('/logout', (req, res, next) => {
+  req.logout((err) => {
+    if (err) return next(err);
+    res.redirect('/');
+  });
+});
+
+app.post('/request-access', async (req, res) => {
+  if (req.isAuthenticated()) {
+    await pool.query('UPDATE users SET access_requested = true WHERE email = $1', [(req.user as any).email]);
+  }
+  res.redirect(req.header('Referer') || '/');
+});
+
+// Admin routes
+app.get('/admin', async (req, res) => {
+  if (!req.isAuthenticated() || (req.user as any).role !== 'admin') {
+    return res.status(403).send(renderPage('Access Denied', '<h1>Admin Access Required</h1><p>You do not have permission to view this page.</p>'));
+  }
+
+  const result = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
+  const users = result.rows;
+
+  const userRows = users.map(u => `
+    <tr>
+      <td>${u.email}</td>
+      <td>
+        <span class="status-badge status-${u.role}">${u.role}</span>
+        ${u.access_requested ? '<span class="status-badge status-requested">Requested</span>' : ''}
+      </td>
+      <td>
+        <form action="/admin/users/update" method="POST" style="display:inline-flex; gap: 0.5rem;">
+          <input type="hidden" name="email" value="${u.email}">
+          <select name="role" style="padding: 0.3rem;">
+            <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+            <option value="approved" ${u.role === 'approved' ? 'selected' : ''}>Approved</option>
+            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+          </select>
+          <button type="submit" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Update</button>
+        </form>
+        ${u.access_requested ? `
+          <form action="/admin/users/approve" method="POST" style="display:inline;">
+            <input type="hidden" name="email" value="${u.email}">
+            <button type="submit" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: #28a745;">Approve</button>
+          </form>
+          <form action="/admin/users/decline" method="POST" style="display:inline;">
+            <input type="hidden" name="email" value="${u.email}">
+            <button type="submit" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: #dc3545;">Decline</button>
+          </form>
+        ` : ''}
+      </td>
+    </tr>
+  `).join('');
+
+  res.send(renderPage('Admin Dashboard', `
+    <h1>Admin Dashboard</h1>
+    <div class="card">
+      <h2>User Management</h2>
+      <table>
+        <thead>
+          <tr><th>Email</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          ${userRows}
+        </tbody>
+      </table>
+    </div>
+  `));
+});
+
+app.post('/admin/users/update', async (req, res) => {
+  if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+  const { email, role } = req.body;
+  await pool.query('UPDATE users SET role = $1 WHERE email = $2', [role, email]);
+  res.redirect('/admin');
+});
+
+app.post('/admin/users/approve', async (req, res) => {
+  if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+  const { email } = req.body;
+  await pool.query("UPDATE users SET role = 'approved', access_requested = false WHERE email = $1", [email]);
+  res.redirect('/admin');
+});
+
+app.post('/admin/users/decline', async (req, res) => {
+  if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+  const { email } = req.body;
+  await pool.query('UPDATE users SET access_requested = false WHERE email = $1', [email]);
+  res.redirect('/admin');
+});
 
 app.use((req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path === '/unauthorized' || req.path === '/health') return next();
+  if (req.path.startsWith('/auth/') || req.path === '/health' || req.path === '/logout' || req.path === '/request-access' || req.path.startsWith('/admin')) return next();
+  
   const urlPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
   const protectedRoutes = getProtectedRoutes();
   const isProtected = protectedRoutes.some(pattern => {
     const tests = [urlPath, urlPath + '.html', path.join(urlPath, 'index.html')];
     return tests.some(p => minimatch(p, pattern, { dot: true, nocase: true }));
   });
-  if (isProtected && !req.isAuthenticated()) {
-    (req.session as any).returnTo = req.originalUrl;
-    return res.redirect('/auth/google');
+
+  if (isProtected) {
+    if (!req.isAuthenticated()) {
+      (req.session as any).returnTo = req.originalUrl;
+      return res.redirect('/auth/google');
+    }
+
+    const user = req.user as any;
+    if (user.role !== 'admin' && user.role !== 'approved') {
+      const content = user.access_requested 
+        ? `<h1>Request Pending</h1><p>Your request for access to <strong>${req.path}</strong> is currently being reviewed by an administrator.</p><p>We will notify you once you have been approved.</p>`
+        : `<h1>Access Restricted</h1><p>You need to be an approved user to view <strong>${req.path}</strong>.</p>
+           <form action="/request-access" method="POST">
+             <button type="submit">Request Access</button>
+           </form>`;
+      
+      return res.status(403).send(renderPage('Access Restricted', `<div class="card">${content}</div>`));
+    }
   }
   next();
 });
