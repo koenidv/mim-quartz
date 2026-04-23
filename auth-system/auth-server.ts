@@ -94,11 +94,11 @@ app.use((req, res, next) => {
       console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
       
       if (isStaticAsset) {
-        return res.status(403).send(renderPage('Access Restricted', `
+        return res.status(403).send(renderPage('Flo\'s Notes: Private Content', `
           <div class="card">
-            <h1>Access Restricted</h1>
-            <p>The resource <strong>${decodedPath}</strong> is protected.</p>
-            <p>You need to be an approved user to view this file.</p>
+            <h1>Private Content</h1>
+            <p><i>This resource is not publicly available.</i></p>
+            <p>Please request access and send me a message if you believe you should not see this error.</p>
             <form action="/request-access" method="POST">
               <button type="submit">Request Access</button>
             </form>
@@ -107,13 +107,14 @@ app.use((req, res, next) => {
       }
 
       const content = user.access_requested 
-        ? `<h1>Request Pending</h1><p>Your request for access to <strong>${req.path}</strong> is currently being reviewed by an administrator.</p><p>We will notify you once you have been approved.</p>`
-        : `<h1>Access Restricted</h1><p>You need to be an approved user to view <strong>${req.path}</strong>.</p>
+        ? `<h1>Request Pending</h1><p>Your request is being reviewed.</p>`
+        : `<h1>Private Content</h1><p><i>This resource is not publicly available.</i></p>
+           <p>Please request access and send me a message if you believe you should not see this error.</p>
            <form action="/request-access" method="POST">
              <button type="submit">Request Access</button>
            </form>`;
       
-      return res.status(403).send(renderPage('Access Restricted', `<div class="card">${content}</div>`));
+      return res.status(403).send(renderPage('Flo\'s Notes: Private Content', `<div class="card">${content}</div>`));
     }
   }
 
@@ -184,58 +185,88 @@ function renderPage(title: string, content: string) {
       background-color: var(--light); 
       color: var(--dark); 
       padding: 2rem; 
-      max-width: 800px; 
+      max-width: 900px; 
       margin: 0 auto;
       line-height: 1.6;
     }
-    h1, h2, h3 { font-family: var(--font-header); color: var(--secondary); }
+    h1, h2, h3 { font-family: var(--font-header); color: var(--secondary); margin-bottom: 1rem; }
+    h1 { font-size: 2.2rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid var(--lightgray); padding-bottom: 0.5rem; }
+    
     a { color: var(--tertiary); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
     a:hover { border-color: var(--tertiary); }
+    
     .card { 
       border: 1px solid var(--lightgray); 
-      padding: 2.5rem; 
+      padding: 2rem; 
       border-radius: 12px; 
       background: var(--light); 
-      box-shadow: 0 8px 30px rgba(0,0,0,0.04);
-      margin-top: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+      margin-top: 1.5rem;
     }
+    
+    .button-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    
     button, .button { 
       background: var(--secondary); 
       color: var(--light);
       border: none; 
-      padding: 0.8rem 1.5rem; 
+      padding: 0.6rem 1.2rem; 
       border-radius: 6px; 
       font-family: var(--font-header); 
       font-weight: 700;
-      font-size: 1rem;
+      font-size: 0.9rem;
       cursor: pointer;
       display: inline-block;
-      transition: opacity 0.2s;
+      transition: transform 0.1s, opacity 0.2s;
+      margin-top: 0.5rem;
     }
-    button:hover, .button:hover { opacity: 0.9; color: var(--light); }
+    button:hover, .button:hover { opacity: 0.9; transform: translateY(-1px); color: var(--light); }
+    button:active { transform: translateY(0); }
     button:disabled { background: var(--gray); cursor: not-allowed; }
-    table { width: 100%; border-collapse: collapse; margin-top: 2rem; font-size: 0.9rem; }
-    th, td { border-bottom: 1px solid var(--lightgray); padding: 1rem; text-align: left; }
-    th { color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    
+    .button-secondary { background: var(--lightgray); color: var(--darkgray); }
+    .button-approve { background: #28a745; }
+    .button-decline { background: #dc3545; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid var(--lightgray); padding: 1rem; text-align: left; vertical-align: middle; }
+    th { color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.8rem; }
+    
     .status-badge {
       display: inline-block;
-      padding: 0.2rem 0.6rem;
-      border-radius: 12px;
-      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.7rem;
       font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.03em;
     }
-    .status-requested { background: #fff3cd; color: #856404; }
-    .status-approved { background: #d4edda; color: #155724; }
-    .status-admin { background: #cce5ff; color: #004085; }
-    .nav { margin-bottom: 2rem; display: flex; gap: 1rem; align-items: center; }
+    .status-requested { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .status-approved { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-admin { background: #cce5ff; color: #004085; border: 1px solid #b8daff; }
+    .status-user { background: var(--lightgray); color: var(--darkgray); }
+
+    .nav { margin-bottom: 3rem; display: flex; gap: 1.5rem; align-items: center; border-bottom: 1px solid var(--lightgray); padding-bottom: 1rem; }
     .nav-spacer { flex-grow: 1; }
+    .nav a { font-family: var(--font-header); font-weight: 600; color: var(--darkgray); font-size: 0.95rem; }
+    .nav a:hover { color: var(--secondary); }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .stat-card { padding: 1.5rem; border-radius: 12px; border: 1px solid var(--lightgray); text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: var(--secondary); font-family: var(--font-header); }
+    .stat-label { font-size: 0.8rem; color: var(--gray); text-transform: uppercase; letter-spacing: 0.1em; }
+    
+    select { padding: 0.5rem; border-radius: 6px; border: 1px solid var(--lightgray); font-family: var(--font-body); color: var(--dark); background: var(--light); }
+    
+    .empty-state { text-align: center; padding: 3rem; color: var(--gray); font-style: italic; }
   </style>
 </head>
 <body>
   <div class="nav">
-    <a href="/" style="font-weight: bold; color: var(--secondary);">Flo's Notes</a>
+    <a href="/" style="font-size: 1.2rem; color: var(--secondary); border: none;">Flo's Notes</a>
     <div class="nav-spacer"></div>
+    <a href="/admin">Dashboard</a>
     <a href="/logout">Logout</a>
   </div>
   ${content}
@@ -331,50 +362,96 @@ app.get('/admin', async (req, res) => {
   const result = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
   const users = result.rows;
 
-  const userRows = users.map(u => `
+  const totalUsers = users.length;
+  const approvedUsers = users.filter(u => u.role === 'approved' || u.role === 'admin').length;
+  const pendingRequests = users.filter(u => u.access_requested).length;
+
+  const requests = users.filter(u => u.access_requested);
+  const otherUsers = users.filter(u => !u.access_requested);
+
+  const renderUserRow = (u: any) => `
     <tr>
-      <td>${u.email}</td>
+      <td style="font-weight: 500;">${u.email}</td>
       <td>
         <span class="status-badge status-${u.role}">${u.role}</span>
-        ${u.access_requested ? '<span class="status-badge status-requested">Requested</span>' : ''}
+        ${u.access_requested ? '<span class="status-badge status-requested" style="margin-left: 0.3rem;">Pending</span>' : ''}
       </td>
       <td>
-        <form action="/admin/users/update" method="POST" style="display:inline-flex; gap: 0.5rem;">
-          <input type="hidden" name="email" value="${u.email}">
-          <select name="role" style="padding: 0.3rem;">
-            <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
-            <option value="approved" ${u.role === 'approved' ? 'selected' : ''}>Approved</option>
-            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
-          </select>
-          <button type="submit" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Update</button>
-        </form>
-        ${u.access_requested ? `
-          <form action="/admin/users/approve" method="POST" style="display:inline;">
+        <div class="button-group">
+          <form action="/admin/users/update" method="POST" style="display:inline-flex; gap: 0.5rem; align-items: center;">
             <input type="hidden" name="email" value="${u.email}">
-            <button type="submit" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: #28a745;">Approve</button>
+            <select name="role">
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+              <option value="approved" ${u.role === 'approved' ? 'selected' : ''}>Approved</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+            </select>
+            <button type="submit" class="button-secondary" style="margin-top: 0;">Update</button>
           </form>
-          <form action="/admin/users/decline" method="POST" style="display:inline;">
-            <input type="hidden" name="email" value="${u.email}">
-            <button type="submit" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: #dc3545;">Decline</button>
-          </form>
-        ` : ''}
+          ${u.access_requested ? `
+            <form action="/admin/users/approve" method="POST" style="display:inline;">
+              <input type="hidden" name="email" value="${u.email}">
+              <button type="submit" class="button-approve" style="margin-top: 0;">Approve</button>
+            </form>
+            <form action="/admin/users/decline" method="POST" style="display:inline;">
+              <input type="hidden" name="email" value="${u.email}">
+              <button type="submit" class="button-decline" style="margin-top: 0;">Decline</button>
+            </form>
+          ` : ''}
+        </div>
       </td>
     </tr>
-  `).join('');
+  `;
 
-  res.send(renderPage('Admin Dashboard', `
-    <h1>Admin Dashboard</h1>
-    <div class="card">
-      <h2>User Management</h2>
+  const requestSection = requests.length > 0 ? `
+    <h2>Access Requests</h2>
+    <div class="card" style="border-left: 4px solid #ffc107;">
       <table>
         <thead>
           <tr><th>Email</th><th>Status</th><th>Actions</th></tr>
         </thead>
         <tbody>
-          ${userRows}
+          ${requests.map(renderUserRow).join('')}
         </tbody>
       </table>
     </div>
+  ` : '';
+
+  const userListSection = `
+    <h2>All Users</h2>
+    <div class="card">
+      ${otherUsers.length > 0 ? `
+        <table>
+          <thead>
+            <tr><th>Email</th><th>Role</th><th>Management</th></tr>
+          </thead>
+          <tbody>
+            ${otherUsers.map(renderUserRow).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="empty-state">No other users found.</div>'}
+    </div>
+  `;
+
+  res.send(renderPage('Admin Dashboard', `
+    <h1>Admin Dashboard</h1>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">${totalUsers}</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${approvedUsers}</div>
+        <div class="stat-label">Approved</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${pendingRequests}</div>
+        <div class="stat-label">Pending Requests</div>
+      </div>
+    </div>
+
+    ${requestSection}
+    ${userListSection}
   `));
 });
 
