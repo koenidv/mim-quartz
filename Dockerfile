@@ -8,10 +8,11 @@ RUN curl https://rclone.org/install.sh | bash
 # 2. Copy code
 COPY . .
 
-# 3. Install ALL dependencies into one root node_modules
+# 3. Install dependencies
 RUN npm install
 
 EXPOSE 3000
 
 # 4. Start Command
-CMD ["sh", "-c", "npm run db-init && npm run start-auth"]
+# Added 'cat package.json' to debug exactly what Node is seeing at runtime
+CMD ["sh", "-c", "cat package.json && npx tsx scripts/db-init.ts && npx tsx scripts/auth-server.ts"]

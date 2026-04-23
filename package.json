@@ -104,7 +104,8 @@
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.11.5",
     "connect-pg-simple": "^9.0.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "tsx": "^4.20.6"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
@@ -123,7 +124,6 @@
     "@types/connect-pg-simple": "^7.0.3",
     "esbuild": "^0.25.12",
     "prettier": "^3.6.2",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }
