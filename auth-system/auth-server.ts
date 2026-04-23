@@ -52,6 +52,7 @@ function isRouteProtected(reqPath: string) {
 // Global middleware to handle auth and routing
 app.use((req, res, next) => {
   const reqPath = req.path;
+  const decodedPath = decodeURIComponent(reqPath.split('?')[0]);
 
   // 1. Skip auth for internal system routes
   if (
@@ -92,8 +93,6 @@ app.use((req, res, next) => {
     if (user.role !== 'admin' && user.role !== 'approved') {
       console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
       
-      // If it's a static asset (PDF/Video) that is protected, we can't show the "Request Access" HTML
-      // We should probably redirect to a themed page that explains this
       if (isStaticAsset) {
         return res.status(403).send(renderPage('Access Restricted', `
           <div class="card">
