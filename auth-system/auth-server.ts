@@ -164,18 +164,63 @@ function renderPage(title: string, content: string) {
 }
 
 app.get('/auth/google', (req, res, next) => {
-  if (!(req.session as any).returnTo && req.header('Referer')) {
-    (req.session as any).returnTo = req.header('Referer');
-  }
-  next();
-}, passport.authenticate('google', { scope: ['profile', 'email'] }));
+  let returnTo = (req.session as any).returnTo || req.header('Referer') || '/';
+  
+  // Determine current origin for validation
+  const currentProtocol = req.protocol;
+  const currentHost = req.get('host');
+  const currentOrigin = `${currentProtocol}://${currentHost}`;
 
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/unauthorized' }), (req, res) => {
-  const returnTo = (req.session as any).returnTo || '/';
-  delete (req.session as any).returnTo;
-  req.session.save(() => {
-    res.redirect(returnTo);
-  });
+  // Ensure returnTo is a relative path or on our domain to prevent open redirects
+  try {
+    const url = new URL(returnTo, currentOrigin);
+    if (url.origin === currentOrigin) {
+      returnTo = url.pathname + url.search + url.hash;
+    } else {
+      console.log(`[Auth] returnTo origin mismatch: ${url.origin} vs ${currentOrigin}`);
+      returnTo = '/';
+    }
+  } catch (e) {
+    console.error('[Auth] Error parsing returnTo:', e);
+    returnTo = '/';
+  }
+
+  console.log(`[Auth] /auth/google - Referer: ${req.header('Referer')}, Final returnTo: ${returnTo}`);
+  
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    state: Buffer.from(JSON.stringify({ returnTo })).toString('base64')
+  })(req, res, next);
+});
+
+app.get('/auth/google/callback', (req, res, next) => {
+  let stateReturnTo = '/';
+  try {
+    if (req.query.state) {
+      const state = JSON.parse(Buffer.from(req.query.state as string, 'base64').toString());
+      stateReturnTo = state.returnTo;
+    }
+  } catch (e) {
+    console.error('[Auth] Error parsing state:', e);
+  }
+
+  passport.authenticate('google', { failureRedirect: '/unauthorized' }, (err, user, info) => {
+    if (err) return next(err);
+    if (!user) return res.redirect('/unauthorized');
+    
+    req.logIn(user, (err) => {
+      if (err) return next(err);
+      
+      const returnTo = stateReturnTo || (req.session as any).returnTo || '/';
+      console.log(`[Auth] Callback success. stateReturnTo: ${stateReturnTo}, sessionReturnTo: ${(req.session as any).returnTo}. Redirecting to: ${returnTo}`);
+      
+      delete (req.session as any).returnTo;
+      req.session.save((err) => {
+        if (err) console.error('[Auth] Session save error in callback:', err);
+        res.redirect(returnTo);
+      });
+    });
+  })(req, res, next);
 });
 
 app.get('/unauthorized', (req, res) => {
@@ -283,18 +328,21 @@ app.use((req, res, next) => {
     const tests = [urlPath, urlPath + '.html', path.join(urlPath, 'index.html')];
     return tests.some(p => minimatch(p, pattern, { dot: true, nocase: true }));
   });
+if (isProtected) {
+  if (!req.isAuthenticated()) {
+    console.log(`[Auth] Protected route hit (unauthenticated): ${req.originalUrl}. Setting returnTo and redirecting to login.`);
+    (req.session as any).returnTo = req.originalUrl;
+    return req.session.save((err) => {
+      if (err) console.error('[Auth] Session save error in middleware:', err);
+      res.redirect('/auth/google');
+    });
+  }
 
-  if (isProtected) {
-    if (!req.isAuthenticated()) {
-      (req.session as any).returnTo = req.originalUrl;
-      return req.session.save(() => {
-        res.redirect('/auth/google');
-      });
-    }
-
-    const user = req.user as any;
-    if (user.role !== 'admin' && user.role !== 'approved') {
-      const content = user.access_requested 
+  const user = req.user as any;
+  if (user.role !== 'admin' && user.role !== 'approved') {
+    console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
+    const content = user.access_requested 
+...
         ? `<h1>Request Pending</h1><p>Your request for access to <strong>${req.path}</strong> is currently being reviewed by an administrator.</p><p>We will notify you once you have been approved.</p>`
         : `<h1>Access Restricted</h1><p>You need to be an approved user to view <strong>${req.path}</strong>.</p>
            <form action="/request-access" method="POST">
