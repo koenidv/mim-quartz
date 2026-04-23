@@ -274,9 +274,10 @@ app.post('/admin/users/decline', async (req, res) => {
 });
 
 app.use((req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path === '/health' || req.path === '/logout' || req.path === '/request-access' || req.path.startsWith('/admin')) return next();
+  if (req.path.startsWith('/auth/') || req.path === '/health' || req.path === '/logout' || req.path === '/request-access' || req.path.startsWith('/admin') || req.path === '/unauthorized') return next();
   
-  const urlPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
+  const decodedPath = decodeURIComponent(req.path.split('?')[0]);
+  const urlPath = decodedPath.startsWith('/') ? decodedPath.substring(1) : decodedPath;
   const protectedRoutes = getProtectedRoutes();
   const isProtected = protectedRoutes.some(pattern => {
     const tests = [urlPath, urlPath + '.html', path.join(urlPath, 'index.html')];
@@ -309,18 +310,25 @@ app.use((req, res, next) => {
 app.use(express.static(publicDir, { extensions: ['html'], index: 'index.html' }));
 
 app.get('*', (req, res) => {
-  const cleanPath = req.path.split('?')[0];
+  const decodedPath = decodeURIComponent(req.path.split('?')[0]);
   const possible = [
-    path.join(publicDir, cleanPath),
-    path.join(publicDir, cleanPath + '.html'),
-    path.join(publicDir, cleanPath, 'index.html')
+    path.join(publicDir, decodedPath),
+    path.join(publicDir, decodedPath + '.html'),
+    path.join(publicDir, decodedPath, 'index.html')
   ];
+  
   for (const p of possible) {
     if (fs.existsSync(p) && fs.statSync(p).isFile()) return res.sendFile(p);
   }
-  const indexFile = path.join(publicDir, 'index.html');
-  if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
-  res.status(404).send('<h1>Site is still building...</h1><p>Please refresh in a few moments.</p>');
+
+  // Only fall back to index.html if the request is for a page (no extension or .html)
+  const ext = path.extname(decodedPath).toLowerCase();
+  if (ext === '' || ext === '.html') {
+    const indexFile = path.join(publicDir, 'index.html');
+    if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
+  }
+  
+  res.status(404).send(renderPage('404 Not Found', '<div class="card"><h1>404 Not Found</h1><p>The requested file could not be found. It might still be building or was moved.</p></div>'));
 });
 
 app.listen(port, () => {
