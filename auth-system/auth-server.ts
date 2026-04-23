@@ -14,14 +14,11 @@ import { exec } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ROOT-LEVEL PATH RESOLUTION
-// When running from root with 'tsx scripts/auth-server.ts':
 const projectRoot = process.cwd();
 const publicDir = path.join(projectRoot, 'public');
 const configPath = path.join(projectRoot, 'quartz.config.ts');
 
-// Load environment variables
-dotenv.config({ path: path.join(projectRoot, '.env') });
+dotenv.config();
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const PgSession = connectPgSimple(session);
@@ -79,7 +76,7 @@ app.get('/auth/google/callback', passport.authenticate('google', { failureRedire
   delete (req.session as any).returnTo;
   res.redirect(returnTo);
 });
-app.get('/unauthorized', (req, res) => res.status(403).send('<h1>Unauthorized</h1><p>Email not allowed.</p>'));
+app.get('/unauthorized', (req, res) => res.status(403).send('<h1>Unauthorized</h1><p>Your email is not on the allowed list. Please contact the administrator.</p>'));
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path === '/unauthorized' || req.path === '/health') return next();
@@ -110,12 +107,11 @@ app.get('*', (req, res) => {
   }
   const indexFile = path.join(publicDir, 'index.html');
   if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
-  res.status(404).send(`<h1>Site is still building...</h1><p>Please refresh in a few moments.</p><hr><small>Debug: Looking for <code>${indexFile}</code></small>`);
+  res.status(404).send('<h1>Site is still building...</h1><p>Please refresh in a few moments.</p>');
 });
 
 app.listen(port, () => {
   console.log(`Auth Server listening on port ${port}`);
-  console.log(`Public Dir: ${publicDir}`);
   if (!fs.existsSync(publicDir) || fs.readdirSync(publicDir).length === 0) {
     console.log('Public directory empty. Starting background Quartz build...');
     const child = exec('npx quartz build');
