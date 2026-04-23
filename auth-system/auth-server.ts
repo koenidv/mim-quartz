@@ -163,11 +163,23 @@ function renderPage(title: string, content: string) {
   `;
 }
 
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google', (req, res, next) => {
+  if (!(req.session as any).returnTo && req.header('Referer')) {
+    (req.session as any).returnTo = req.header('Referer');
+  }
+  next();
+}, passport.authenticate('google', { scope: ['profile', 'email'] }));
+
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/unauthorized' }), (req, res) => {
   const returnTo = (req.session as any).returnTo || '/';
   delete (req.session as any).returnTo;
-  res.redirect(returnTo);
+  req.session.save(() => {
+    res.redirect(returnTo);
+  });
+});
+
+app.get('/unauthorized', (req, res) => {
+  res.status(401).send(renderPage('Unauthorized', '<div class="card"><h1>Unauthorized</h1><p>Authentication failed. Please try again.</p><a href="/auth/google" class="button">Try Again</a></div>'));
 });
 
 app.get('/logout', (req, res, next) => {
@@ -274,7 +286,9 @@ app.use((req, res, next) => {
   if (isProtected) {
     if (!req.isAuthenticated()) {
       (req.session as any).returnTo = req.originalUrl;
-      return res.redirect('/auth/google');
+      return req.session.save(() => {
+        res.redirect('/auth/google');
+      });
     }
 
     const user = req.user as any;
