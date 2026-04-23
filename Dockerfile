@@ -14,5 +14,5 @@ RUN npm install --legacy-peer-deps
 EXPOSE 3000
 
 # 4. Start Command
-# Added 'ls -R' to debug exactly what files exist at runtime
-CMD ["sh", "-c", "ls -R auth-system && npx tsx auth-system/db-init.ts && npx tsx auth-system/auth-server.ts"]
+# Using absolute paths to remove all doubt
+CMD ["sh", "-c", "ls -R /usr/app && npx tsx /usr/app/auth-system/db-init.ts && npx tsx /usr/app/auth-system/auth-server.ts"]
