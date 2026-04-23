@@ -39,6 +39,17 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Serve static files immediately for performance
+// This skips the auth middleware for common static assets like images, CSS, and JS
+app.use((req, res, next) => {
+  const ext = path.extname(req.path).toLowerCase();
+  // If it's a known static asset (not a page), serve it directly
+  if (ext && ext !== '.html') {
+    return express.static(publicDir)(req, res, next);
+  }
+  next();
+});
+
 const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID || '',
@@ -342,7 +353,6 @@ if (isProtected) {
   if (user.role !== 'admin' && user.role !== 'approved') {
     console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
     const content = user.access_requested 
-...
         ? `<h1>Request Pending</h1><p>Your request for access to <strong>${req.path}</strong> is currently being reviewed by an administrator.</p><p>We will notify you once you have been approved.</p>`
         : `<h1>Access Restricted</h1><p>You need to be an approved user to view <strong>${req.path}</strong>.</p>
            <form action="/request-access" method="POST">
