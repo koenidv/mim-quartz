@@ -1,8 +1,15 @@
 import { QuartzTransformerPlugin } from "../types"
-import { Root } from "mdast"
+import { Root, Paragraph, Text } from "mdast"
 import { findAndReplace as mdastFindReplace } from "mdast-util-find-and-replace"
 
-export const LAW_REGEX = /(?:§+|Art\.?|Artikel)\s*(\d+[a-z]?)(?:(?:\s+(?:Abs\.?|Satz|S\.?|[IVXLCDM]+|\d+))*)?\s+([A-ZÄÖÜß][a-zA-ZÄÖÜß0-9-]+(?:\s+(?:[IVXLCDM]+|[0-9]+))?)/g;
+/**
+ * Regex for German law references.
+ * Matches: § 238 BGB, §§ 1, 2 BGB, Art. 1 GG, § 123 Abs. 1 Satz 2 StGB, § 123 I 2 BGB, etc.
+ * Also matches sections without law book if followed by something else or end of line.
+ * Group 1: Primary section number
+ * Group 2: Law name (including optional Roman numerals like SGB II) - now optional
+ */
+export const LAW_REGEX = /(?:§+|Art\.?|Artikel)\s*(\d+[a-z]?)(?:(?:\s+(?:Abs\b\.?|Satz\b|S\b\.?|[IVXLCDM]+\b|\d+\b))*)?(?:\s+([A-ZÄÖÜß][a-zA-ZÄÖÜß0-9-]+(?:\s+(?:[IVXLCDM]+|[0-9]+))?))?/g;
 
 const LAW_MAPPING: Record<string, string> = {
     "GG": "gg",
@@ -31,6 +38,7 @@ const ROMAN_MAP: Record<string, string> = {
 };
 
 export function getUrl(law: string, section: string): string {
+    if (!law) return "";
     const lawUpper = law.toUpperCase().trim();
     let slug = "";
     
@@ -55,11 +63,40 @@ export const LawLinker: QuartzTransformerPlugin = () => {
     markdownPlugins() {
       return [
         () => {
-          return (tree: Root) => {
+          return (tree: Root, file) => {
+            const defaultLaw = file.data.frontmatter?.default_law as string | undefined;
+
+            // Add disclaimer at the top if defaultLaw is set
+            if (defaultLaw) {
+              const disclaimer: Paragraph = {
+                type: 'paragraph',
+                children: [
+                  { 
+                    type: 'text', 
+                    value: 'References without law book default to ' 
+                  },
+                  {
+                    type: 'strong',
+                    children: [{ type: 'text', value: defaultLaw }]
+                  },
+                  { type: 'text', value: '.' }
+                ],
+                data: {
+                  hProperties: {
+                    className: ['law-disclaimer']
+                  }
+                }
+              };
+              tree.children.unshift(disclaimer);
+            }
+
             mdastFindReplace(tree, [
               [
                 LAW_REGEX,
-                (fullMatch: string, section: string, law: string) => {
+                (fullMatch: string, section: string, lawMatch: string) => {
+                  const law = lawMatch || defaultLaw;
+                  if (!law) return false;
+
                   return {
                     type: "link",
                     url: getUrl(law, section),

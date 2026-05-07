@@ -2,3 +2,17 @@
 @use "./themes";
 
 // put your custom CSS here!
+
+.law-link {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.law-disclaimer {
+    font-size: 0.8em;
+    color: var(--gray);
+    border-bottom: 1px solid var(--lightgray);
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    font-style: italic;
+}
