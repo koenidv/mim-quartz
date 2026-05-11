@@ -15,8 +15,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const projectRoot = process.cwd();
-const publicDir = path.join(projectRoot, 'public');
 const configPath = path.join(projectRoot, 'quartz.config.ts');
+
+function getOutputDir() {
+  try {
+    if (!fs.existsSync(configPath)) return 'public';
+    const content = fs.readFileSync(configPath, 'utf-8');
+    const match = content.match(/outputDir:\s*["']([^"']+)["']/);
+    return match ? match[1] : 'public';
+  } catch (err) {
+    console.error('Error reading outputDir from config:', err);
+    return 'public';
+  }
+}
+
+const publicDir = path.resolve(projectRoot, getOutputDir());
 
 dotenv.config();
 
@@ -51,21 +64,47 @@ function isRouteProtected(reqPath: string) {
 
 // Global middleware to handle auth and routing
 app.use((req, res, next) => {
+  const outputFolderName = path.basename(getOutputDir());
+  
+  // Normalize path: if it starts with the output folder name, strip it
+  // This handles cases where the proxy does NOT strip the prefix.
+  if (req.path.startsWith(`/${outputFolderName}/`)) {
+    req.url = req.url.substring(outputFolderName.length + 1);
+  } else if (req.path === `/${outputFolderName}`) {
+    // Redirect /out to /out/ to ensure relative paths work in the browser
+    return res.redirect(301, `/${outputFolderName}/`);
+  }
+
   const reqPath = req.path;
   const decodedPath = decodeURIComponent(reqPath.split('?')[0]);
+  
+  if (process.env.DEBUG) {
+    console.log(`[Auth] Request: ${req.method} ${req.originalUrl} -> Resolved Path: ${reqPath}`);
+  }
 
-  // 1. Skip auth for internal system routes
-  if (
+  // 1. Skip auth for internal system routes and common Quartz assets
+  const isSystemRoute = 
     reqPath.startsWith('/auth/') || 
     reqPath === '/health' || 
     reqPath === '/logout' || 
     reqPath === '/request-access' || 
     reqPath.startsWith('/admin') || 
-    reqPath === '/unauthorized' ||
+    reqPath === '/unauthorized';
+
+  const isPublicAsset = 
     reqPath === '/index.css' ||
-    reqPath.startsWith('/static/')
-  ) {
-    return next();
+    reqPath.startsWith('/static/') ||
+    reqPath.endsWith('.js') ||
+    reqPath.endsWith('.css') ||
+    reqPath.endsWith('.png') ||
+    reqPath.endsWith('.webp') ||
+    reqPath.endsWith('.ico');
+
+  if (isSystemRoute || isPublicAsset) {
+    // For public assets, we still need to check if the specific file is protected
+    if (!isRouteProtected(reqPath)) {
+      return next();
+    }
   }
 
   const isProtected = isRouteProtected(reqPath);

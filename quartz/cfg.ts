@@ -73,6 +73,7 @@ export interface GlobalConfiguration {
    *   Quartz will avoid using this as much as possible and use relative URLs most of the time
    */
   baseUrl?: string
+  outputDir?: string
   theme: Theme
   /**
    * Allow to translate the date in the language of your choice.

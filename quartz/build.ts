@@ -52,8 +52,10 @@ async function buildQuartz(argv: Argv, mut: Mutex, clientRefresh: () => void) {
     incremental: false,
   }
 
+  const output = argv.output ?? cfg.configuration.outputDir ?? "public"
+  argv.output = output
+
   const perf = new PerfTimer()
-  const output = argv.output
 
   const pluginCount = Object.values(cfg.plugins).flat().length
   const pluginNames = (key: "transformers" | "filters" | "emitters") =>

@@ -17,6 +17,7 @@ const config: QuartzConfig = {
       apiKey: process.env.NEXT_PUBLIC_POSTHOG_KEY || "",
       host: "https://eu.i.posthog.com",
     },
+    outputDir: "public/out",
     locale: "en-US",
     baseUrl: "mim.koeni.dev",
     ignorePatterns: ["private", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "GEMINI.md", "Session Note *"],

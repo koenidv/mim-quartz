@@ -6,7 +6,7 @@ import { FilePath, FullSlug } from "./path"
 export interface Argv {
   directory: string
   verbose: boolean
-  output: string
+  output?: string
   serve: boolean
   watch: boolean
   port: number
