@@ -8,6 +8,7 @@ import { styleText } from "util"
 import { parseMarkdown } from "./processors/parse"
 import { filterContent } from "./processors/filter"
 import { emitContent } from "./processors/emit"
+import { updateDates } from "./util/date"
 import cfg from "../quartz.config"
 import { FilePath, joinSegments, slugifyFilePath } from "./util/path"
 import chokidar from "chokidar"
@@ -85,6 +86,8 @@ async function buildQuartz(argv: Argv, mut: Mutex, clientRefresh: () => void) {
 
   const parsedFiles = await parseMarkdown(ctx, filePaths)
   const filteredContent = filterContent(ctx, parsedFiles)
+
+  updateDates(filteredContent)
 
   await emitContent(ctx, filteredContent)
   console.log(
@@ -262,6 +265,8 @@ async function rebuild(changes: ChangeEvent[], clientRefresh: () => void, buildD
       .filter((file) => file.type === "markdown")
       .map((file) => file.content),
   )
+
+  updateDates(processedFiles)
 
   let emittedFiles = 0
   for (const emitter of cfg.plugins.emitters) {
