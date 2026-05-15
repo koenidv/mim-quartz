@@ -62,8 +62,24 @@ function isRouteProtected(reqPath: string) {
   });
 }
 
+async function notifyAdminOfAccessRequest() {
+  try {
+    await fetch('https://ntfy.sh/koeni-mgmt-access', {
+      method: 'POST',
+      body: 'New access request received. Review at: https://management.koeni.dev/admin',
+      headers: {
+        'Title': 'New Access Request',
+        'Priority': 'high',
+        'Tags': 'locked'
+      }
+    });
+  } catch (err) {
+    console.error('[Auth] Error notifying admin:', err);
+  }
+}
+
 // Global middleware to handle auth and routing
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const outputFolderName = path.basename(getOutputDir());
   
   // Normalize path: if it starts with the output folder name, strip it
@@ -76,7 +92,6 @@ app.use((req, res, next) => {
   }
 
   const reqPath = req.path;
-  const decodedPath = decodeURIComponent(reqPath.split('?')[0]);
   
   if (process.env.DEBUG) {
     console.log(`[Auth] Request: ${req.method} ${req.originalUrl} -> Resolved Path: ${reqPath}`);
@@ -132,28 +147,23 @@ app.use((req, res, next) => {
     if (user.role !== 'admin' && user.role !== 'approved') {
       console.log(`[Auth] Protected route hit (unapproved): ${req.originalUrl} by ${user.email}`);
       
-      if (isStaticAsset) {
-        return res.status(403).send(renderPage('Flo\'s Notes: Private Content', `
-          <div class="card">
-            <h1>Private Content</h1>
-            <p><i>This resource is not publicly available.</i></p>
-            <p>Please request access and send me a message if you believe you should not see this error.</p>
-            <form action="/request-access" method="POST">
-              <button type="submit">Request Access</button>
-            </form>
-          </div>
-        `));
+      // Automatically request access if not already done
+      if (!user.access_requested) {
+        try {
+          await pool.query('UPDATE users SET access_requested = true WHERE email = $1', [user.email]);
+          user.access_requested = true;
+          console.log(`[Auth] Automatically requested access for ${user.email}`);
+          await notifyAdminOfAccessRequest();
+        } catch (err) {
+          console.error('[Auth] Error automatically requesting access:', err);
+        }
       }
 
-      const content = user.access_requested 
-        ? `<h1>Request Pending</h1><p>Your request is being reviewed.</p>`
-        : `<h1>Private Content</h1><p><i>This resource is not publicly available.</i></p>
-           <p>Please request access and send me a message if you believe you should not see this error.</p>
-           <form action="/request-access" method="POST">
-             <button type="submit">Request Access</button>
-           </form>`;
+      const content = `<h1>Request Pending</h1>
+                       <p>Your access request has been automatically submitted and is being reviewed.</p>
+                       <p>Please check back later or send me a message if you believe you should already have access.</p>`;
       
-      return res.status(403).send(renderPage('Flo\'s Notes: Private Content', `<div class="card">${content}</div>`));
+      return res.status(403).send(renderPage('Flo\'s Notes: Access Pending', `<div class="card">${content}</div>`));
     }
   }
 
@@ -387,7 +397,12 @@ app.get('/logout', (req, res, next) => {
 
 app.post('/request-access', async (req, res) => {
   if (req.isAuthenticated()) {
-    await pool.query('UPDATE users SET access_requested = true WHERE email = $1', [(req.user as any).email]);
+    const user = req.user as any;
+    if (!user.access_requested) {
+      await pool.query('UPDATE users SET access_requested = true WHERE email = $1', [user.email]);
+      user.access_requested = true;
+      await notifyAdminOfAccessRequest();
+    }
   }
   res.redirect(req.header('Referer') || '/');
 });
