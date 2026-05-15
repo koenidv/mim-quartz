@@ -159,7 +159,7 @@ app.use(async (req, res, next) => {
         }
       }
 
-      const content = `<h1>Request Pending</h1>
+      const content = `<h1 style="color: black;">Request Pending</h1>
                        <p>Your access request has been automatically submitted and is being reviewed.</p>
                        <p>Please check back later or send me a message if you believe you should already have access.</p>`;
       
@@ -409,7 +409,15 @@ app.post('/request-access', async (req, res) => {
 
 // Admin routes
 app.get('/admin', async (req, res) => {
-  if (!req.isAuthenticated() || (req.user as any).role !== 'admin') {
+  if (!req.isAuthenticated()) {
+    (req.session as any).returnTo = req.originalUrl;
+    return req.session.save((err) => {
+      if (err) console.error('[Auth] Session save error in admin redirect:', err);
+      res.redirect('/auth/google');
+    });
+  }
+
+  if ((req.user as any).role !== 'admin') {
     return res.status(403).send(renderPage('Access Denied', '<h1>Admin Access Required</h1><p>You do not have permission to view this page.</p>'));
   }
 
