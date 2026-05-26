@@ -59,6 +59,7 @@ export default {
     },
     contentMeta: {
       readingTime: ({ minutes }) => `${minutes} דקות קריאה`,
+      noteCount: ({ count }) => (count === 1 ? "1 note" : `${count} notes`),
     },
   },
   pages: {

@@ -59,6 +59,7 @@ export default {
     },
     contentMeta: {
       readingTime: ({ minutes }) => `زمان تقریبی مطالعه: ${minutes} دقیقه`,
+      noteCount: ({ count }) => (count === 1 ? "1 note" : `${count} notes`),
     },
   },
   pages: {

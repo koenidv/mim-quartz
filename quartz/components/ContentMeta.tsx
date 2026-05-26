@@ -35,11 +35,18 @@ export default ((opts?: Partial<ContentMetaOptions>) => {
 
       // Display reading time if enabled
       if (options.showReadingTime) {
-        const { minutes, words: _words } = readingTime(text)
-        const displayedTime = i18n(cfg.locale).components.contentMeta.readingTime({
-          minutes: Math.ceil(minutes),
-        })
-        segments.push(<span>{displayedTime}</span>)
+        if (fileData.noteCount !== undefined) {
+          const displayedCount = i18n(cfg.locale).components.contentMeta.noteCount({
+            count: fileData.noteCount,
+          })
+          segments.push(<span>{displayedCount}</span>)
+        } else {
+          const { minutes, words: _words } = readingTime(text)
+          const displayedTime = i18n(cfg.locale).components.contentMeta.readingTime({
+            minutes: Math.ceil(minutes),
+          })
+          segments.push(<span>{displayedTime}</span>)
+        }
       }
 
       return (

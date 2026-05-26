@@ -4,6 +4,7 @@ import { simplifySlug } from "./path"
 export function updateDates(content: ProcessedContent[]) {
   const slugToContent = new Map<string, ProcessedContent>()
   let maxModifiedDate = new Date(0)
+  let totalTopics = 0
 
   for (const [tree, file] of content) {
     const slug = file.data.slug!
@@ -15,6 +16,10 @@ export function updateDates(content: ProcessedContent[]) {
         maxModifiedDate = file.data.dates.modified
       }
     }
+
+    if (file.data.frontmatter?.type === "topic") {
+      totalTopics++
+    }
   }
 
   for (const [_tree, file] of content) {
@@ -23,6 +28,7 @@ export function updateDates(content: ProcessedContent[]) {
     const type = frontmatter?.type
 
     if (slug === "index") {
+      file.data.noteCount = totalTopics
       if (file.data.dates) {
         file.data.dates.modified = maxModifiedDate
       }
@@ -32,6 +38,7 @@ export function updateDates(content: ProcessedContent[]) {
       const links = file.data.links ?? []
       let maxTopicModifiedDate = new Date(0)
       let foundTopic = false
+      let topicCount = 0
 
       for (const link of links) {
         const linkedContent = slugToContent.get(link)
@@ -39,12 +46,15 @@ export function updateDates(content: ProcessedContent[]) {
           const [_tree, linkedFile] = linkedContent
           if (linkedFile.data.frontmatter?.type === "topic") {
             foundTopic = true
+            topicCount++
             if (linkedFile.data.dates?.modified && linkedFile.data.dates.modified > maxTopicModifiedDate) {
               maxTopicModifiedDate = linkedFile.data.dates.modified
             }
           }
         }
       }
+
+      file.data.noteCount = topicCount
 
       if (foundTopic && file.data.dates) {
         file.data.dates.modified = maxTopicModifiedDate

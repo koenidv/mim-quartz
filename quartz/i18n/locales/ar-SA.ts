@@ -64,6 +64,7 @@ export default {
           : minutes == 2
             ? `دقيقتان للقراءة`
             : `${minutes} دقائق للقراءة`,
+      noteCount: ({ count }) => (count === 1 ? "1 note" : `${count} notes`),
     },
   },
   pages: {
