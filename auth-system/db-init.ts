@@ -13,12 +13,16 @@ const initDb = async () => {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
+        name TEXT,
         role TEXT NOT NULL DEFAULT 'user',
         access_requested BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log('Table "users" created/exists.');
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
+    `);
+    console.log('Table "users" created/exists with name column.');
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS "session" (

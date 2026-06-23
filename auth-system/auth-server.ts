@@ -180,11 +180,12 @@ passport.use(new GoogleStrategy({
   async (accessToken, refreshToken, profile, done) => {
     const email = profile.emails?.[0].value;
     if (!email) return done(null, false);
+    const name = profile.displayName || (profile.name ? `${profile.name.givenName} ${profile.name.familyName}`.trim() : null);
     try {
       // Upsert user: keep everyone logged in!
       const result = await pool.query(
-        "INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING *",
-        [email]
+        "INSERT INTO users (email, name) VALUES ($1, $2) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING *",
+        [email, name]
       );
       return done(null, result.rows[0]);
     } catch (err) { return done(err); }
@@ -433,6 +434,7 @@ app.get('/admin', async (req, res) => {
 
   const renderUserRow = (u: any) => `
     <tr>
+      <td>${u.name || '—'}</td>
       <td style="font-weight: 500;">${u.email}</td>
       <td>
         <span class="status-badge status-${u.role}">${u.role}</span>
@@ -469,7 +471,7 @@ app.get('/admin', async (req, res) => {
     <div class="card" style="border-left: 4px solid #ffc107;">
       <table>
         <thead>
-          <tr><th>Email</th><th>Status</th><th>Actions</th></tr>
+          <tr><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr>
         </thead>
         <tbody>
           ${requests.map(renderUserRow).join('')}
@@ -484,7 +486,7 @@ app.get('/admin', async (req, res) => {
       ${otherUsers.length > 0 ? `
         <table>
           <thead>
-            <tr><th>Email</th><th>Role</th><th>Management</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Management</th></tr>
           </thead>
           <tbody>
             ${otherUsers.map(renderUserRow).join('')}
