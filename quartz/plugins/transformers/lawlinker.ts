@@ -1,15 +1,16 @@
 import { QuartzTransformerPlugin } from "../types"
-import { Root, Paragraph, Text } from "mdast"
+import { Root, Paragraph } from "mdast"
 import { findAndReplace as mdastFindReplace } from "mdast-util-find-and-replace"
 
 /**
  * Regex for German law references.
  * Matches: § 238 BGB, §§ 1, 2 BGB, Art. 1 GG, § 123 Abs. 1 Satz 2 StGB, § 123 I 2 BGB, etc.
  * Also matches sections without law book if followed by something else or end of line.
- * Group 1: Primary section bunch (e.g. "280 I, 241 II, 249 I")
- * Group 2: Law name (including optional Roman numerals like SGB II) - now optional
+ * Group 1: Optional law name prefix
+ * Group 2: Primary section bunch (e.g. "280 I, 241 II, 249 I")
+ * Group 3: Optional law name suffix (including optional Roman numerals like SGB II)
  */
-export const LAW_REGEX = /(?:§+|Art\.?|Artikel)\s*((?:\d+[a-z]?|\(\d+\))(?:\s*(?:[,/–\-]|und|bis|u\.?|Abs\b\.?|Satz\b|S\b\.?|f\b\.?|ff\b\.?|[IVXLCDM]+\b|\(\d+\)|\d+[a-z]?\b)\s*)*)(?:\s+([A-ZÄÖÜß][a-zA-ZÄÖÜß0-9-]+(?:\s+(?:[IVXLCDM]+|[0-9]+))?))?/g;
+export const LAW_REGEX = /(?:([A-ZÄÖÜß][a-zA-ZÄÖÜß0-9-]+)[ \t]+)?(?:§+|Art\.?|Artikel)[ \t]*((?:\d+[a-z]{0,3}|\(\d+\))(?:[ \t]*(?:[,/–\-]|und\b|bis\b|and\b|or\b|oder\b|to\b|u\b\.?|Abs\b\.?|Absatz\b|Satz\b|S\b\.?|Hs\b\.?|Halbsatz\b|Alt\b\.?|Alternative\b|Nr\b\.?|Nummer\b|lit\b\.?|Buchstabe\b|Ziff\b\.?|Ziffer\b|sec\b\.?|section\b|Sec\b\.?|Section\b|sent\b\.?|sentence\b|Sent\b\.?|Sentence\b|para\b\.?|paragraph\b|Para\b\.?|Paragraph\b|sub\b\.?|subs\b\.?|subsection\b|Sub\b\.?|Subs\b\.?|Subsection\b|f\b\.?|ff\b\.?|[IVXLCDM]+\b|§+|\(\d+\)|\d+[a-z]{0,3}\b|[a-z]\b|\([a-z]\)))*)(?:[ \t]+([A-ZÄÖÜß][a-zA-ZÄÖÜß0-9-]+(?:[ \t]+(?:[IVXLCDM]+|[0-9]+))?))?/g;
 
 /**
  * Regex for parsing individual sections out of a bunch.
@@ -60,7 +61,8 @@ export function getUrl(law: string, section: string): string {
         slug = LAW_MAPPING[lawUpper] || law.toLowerCase().trim().replace(/\s+/, "_");
     }
     
-    return `https://www.gesetze-im-internet.de/${slug}/__${section}.html`;
+    const cleanSection = section.trim().replace(/^§+\s*/, "").replace(/(?:st|nd|rd|th)$/i, "").match(/^\d+[a-z]?/)?.[0] || section.trim();
+    return `https://www.gesetze-im-internet.de/${slug}/__${cleanSection}.html`;
 }
 
 export const LawLinker: QuartzTransformerPlugin = () => {
@@ -99,11 +101,11 @@ export const LawLinker: QuartzTransformerPlugin = () => {
             mdastFindReplace(tree, [
               [
                 LAW_REGEX,
-                (fullMatch: string, sectionBunch: string, lawMatch: string) => {
-                  const law = lawMatch || defaultLaw;
+                (fullMatch: string, lawPrefix: string, sectionBunch: string, lawSuffix: string) => {
+                  const law = lawSuffix || lawPrefix || defaultLaw;
                   if (!law) return false;
 
-                  const parts = sectionBunch.split(/([,/–\-]|und|bis)/);
+                  const parts = sectionBunch.split(/([,/–\-]|und|bis|and|or|oder|to)/i);
                   const filteredParts = parts.filter(p => p.length > 0);
                   const bunchIndex = fullMatch.indexOf(sectionBunch);
                   const prefix = fullMatch.slice(0, bunchIndex);
@@ -113,11 +115,11 @@ export const LawLinker: QuartzTransformerPlugin = () => {
                   let currentSection = "";
 
                   filteredParts.forEach((part, i) => {
-                    const isSeparator = /[,/–\-]|und|bis/.test(part);
+                    const isSeparator = /[,/–\-]|und|bis|and|or|oder|to/i.test(part);
                     if (isSeparator) {
                       children.push({ type: "text", value: part });
                     } else {
-                      const trimmed = part.trim();
+                      const trimmed = part.trim().replace(/^§+\s*/, "");
                       const sectionMatch = trimmed.match(/^\d+[a-z]?/);
                       if (sectionMatch) currentSection = sectionMatch[0];
 
