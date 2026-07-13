@@ -145,8 +145,27 @@ const _rebaseHastElement = (
       return
     }
 
-    const rel = joinSegments(resolveRelative(curBase, newBase), "..", el.properties[attr] as string)
-    el.properties[attr] = rel
+    if (attr === "href" && el.properties["data-slug"]) {
+      el.properties[attr] = resolveRelative(newBase, el.properties["data-slug"] as string)
+      return
+    }
+
+    const curBaseFolder = curBase.split("/").slice(0, -1).join("/")
+    const targetAbsolute = joinSegments(curBaseFolder, el.properties[attr] as string)
+    
+    // Normalize path by resolving ".." segments
+    const parts = targetAbsolute.split("/")
+    const resolvedParts: string[] = []
+    for (const part of parts) {
+      if (part === "..") {
+        resolvedParts.pop()
+      } else if (part !== "." && part !== "") {
+        resolvedParts.push(part)
+      }
+    }
+    const targetSlug = resolvedParts.join("/") as FullSlug
+    
+    el.properties[attr] = resolveRelative(newBase, targetSlug)
   }
 }
 

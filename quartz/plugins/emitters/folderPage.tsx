@@ -13,6 +13,7 @@ import {
   joinSegments,
   pathToRoot,
   simplifySlug,
+  normalizeHastElement,
 } from "../../util/path"
 import { defaultListPageLayout, sharedPageComponents } from "../../../quartz.layout"
 import { FolderContent } from "../../components"
@@ -39,13 +40,19 @@ async function* processFolderInfo(
     const [tree, file] = folderContent
     const cfg = ctx.cfg.configuration
     const externalResources = pageResources(pathToRoot(slug), resources)
+    
+    let rebasedTree = tree
+    if (file.data.slug && file.data.slug !== slug) {
+      rebasedTree = normalizeHastElement(tree as any, file.data.slug, slug)
+    }
+
     const componentData: QuartzComponentProps = {
       ctx,
       fileData: file.data,
       externalResources,
       cfg,
       children: [],
-      tree,
+      tree: rebasedTree,
       allFiles,
     }
 
