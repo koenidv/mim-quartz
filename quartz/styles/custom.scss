@@ -16,3 +16,149 @@
     margin-bottom: 10px;
     font-style: italic;
 }
+
+:root {
+  --link-external-color: var(--secondary) !important;
+  --link-external-color-hover: var(--tertiary) !important;
+}
+
+@media all and (min-width: 801px) {
+  .sidebar.left {
+    max-height: 100vh;
+    overflow: hidden;
+    
+    .explorer {
+      min-height: 0;
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      
+      .explorer-content {
+        overflow-y: auto !important;
+      }
+    }
+  }
+}
+
+a.external,
+a.external-link {
+  color: var(--secondary) !important;
+  
+  &:hover {
+    color: var(--tertiary) !important;
+    
+    .external-icon > path {
+      fill: var(--tertiary) !important;
+    }
+  }
+
+  .external-icon > path {
+    fill: var(--secondary) !important;
+  }
+}
+
+.graph > .graph-outer {
+  background-color: var(--light) !important;
+}
+
+.graph > .global-graph-outer > .global-graph-container {
+  background-color: var(--light) !important;
+}
+
+.search > .search-container > .search-space > * {
+  background-color: var(--light) !important;
+}
+
+.callout {
+  margin-bottom: 1rem !important;
+}
+
+blockquote:not(.callout) {
+  border-left: 3px solid var(--secondary) !important;
+  padding: 0.5rem 1rem !important;
+  font-style: italic !important;
+  background-color: var(--highlight) !important;
+  margin: 1rem 0 !important;
+  border-radius: 0 5px 5px 0 !important;
+}
+
+details {
+  summary {
+    list-style: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    cursor: pointer !important;
+    
+    &::-webkit-details-marker {
+      display: none !important;
+    }
+    &::marker {
+      display: none !important;
+      content: "" !important;
+    }
+    
+    &::before {
+      content: "" !important;
+      display: inline-block !important;
+      width: 0.45em !important;
+      height: 0.45em !important;
+      margin-right: 0.5em !important;
+      border-top: 2px solid currentColor !important;
+      border-right: 2px solid currentColor !important;
+      transform: rotate(45deg) !important;
+      transition: transform 0.2s ease !important;
+      opacity: 0.8 !important;
+      flex-shrink: 0 !important;
+    }
+  }
+  
+  &[open] > summary::before {
+    transform: rotate(135deg) !important;
+  }
+}
+
+.explorer-content,
+.sidebar.left,
+.popover-inner {
+  background-color: var(--light) !important;
+}
+
+@media print {
+  .sidebar,
+  .sidebar.left,
+  .sidebar.right,
+  .explorer,
+  .explorer-content,
+  footer,
+  .mobile-only,
+  button.mobile-explorer,
+  button.desktop-explorer {
+    display: none !important;
+  }
+}
+
+.breadcrumb-container .breadcrumb-element > a {
+  color: var(--secondary) !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  
+  &:hover {
+    color: var(--tertiary) !important;
+    text-decoration: underline !important;
+  }
+}
+
+.callout-title-inner,
+.callout-title-inner * {
+  color: inherit !important;
+}
+
+strong, b {
+  font-weight: 700 !important;
+}
+
+strong:not(a *):not(.callout-title *):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+b:not(a *):not(.callout-title *):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+em:not(a *):not(.callout-title *):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *) {
+  color: color-mix(in srgb, var(--dark) 82%, #ff7900) !important;
+}

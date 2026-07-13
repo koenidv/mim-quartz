@@ -35,3 +35,17 @@ document.addEventListener("nav", () => {
     }
   }
 })
+
+window.addEventListener("beforeprint", () => {
+  document.querySelectorAll("details:not([open])").forEach((el) => {
+    el.setAttribute("open", "")
+    el.dataset.wasClosed = "true"
+  })
+})
+
+window.addEventListener("afterprint", () => {
+  document.querySelectorAll("details[data-was-closed]").forEach((el) => {
+    el.removeAttribute("open")
+    delete el.dataset.wasClosed
+  })
+})

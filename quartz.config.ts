@@ -30,7 +30,10 @@ const config: QuartzConfig = {
       cdnCaching: true,
       typography: {
         header: "Schibsted Grotesk",
-        body: "Source Sans Pro",
+        body: {
+          name: "Source Sans Pro",
+          weights: [400, 600, 700],
+        },
         code: "IBM Plex Mono",
       },
       colors: {
