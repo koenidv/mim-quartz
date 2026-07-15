@@ -566,11 +566,9 @@ app.get('*', (req, res) => {
 
 app.listen(port, () => {
   console.log(`Auth Server listening on port ${port}`);
-  if (!fs.existsSync(publicDir) || fs.readdirSync(publicDir).length === 0) {
-    console.log('Public directory empty. Starting background Quartz build...');
-    const child = exec('npx quartz build');
-    child.stdout?.on('data', data => console.log(`[Build] ${data.trim()}`));
-    child.stderr?.on('data', data => console.error(`[Build-Error] ${data.trim()}`));
-    child.on('close', code => console.log(`[Build] Finished with code ${code}`));
-  }
+  console.log('Starting background Quartz build...');
+  const child = exec('npx quartz build');
+  child.stdout?.on('data', data => console.log(`[Build] ${data.trim()}`));
+  child.stderr?.on('data', data => console.error(`[Build-Error] ${data.trim()}`));
+  child.on('close', code => console.log(`[Build] Finished with code ${code}`));
 });

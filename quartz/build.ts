@@ -2,7 +2,7 @@ import sourceMapSupport from "source-map-support"
 sourceMapSupport.install(options)
 import path from "path"
 import { PerfTimer } from "./util/perf"
-import { rm } from "fs/promises"
+import { rm, rename } from "fs/promises"
 import { GlobbyFilterFunction, isGitIgnored } from "globby"
 import { styleText } from "util"
 import { parseMarkdown } from "./processors/parse"
@@ -53,8 +53,8 @@ async function buildQuartz(argv: Argv, mut: Mutex, clientRefresh: () => void) {
     incremental: false,
   }
 
-  const output = argv.output ?? cfg.configuration.outputDir ?? "public"
-  argv.output = output
+  const finalOutput = argv.output ?? cfg.configuration.outputDir ?? "public"
+  const tempOutput = finalOutput + ".tmp"
 
   const perf = new PerfTimer()
 
@@ -68,32 +68,46 @@ async function buildQuartz(argv: Argv, mut: Mutex, clientRefresh: () => void) {
     console.log(`  Emitters: ${pluginNames("emitters").join(", ")}`)
   }
 
+  let parsedFiles: ProcessedContent[]
   const release = await mut.acquire()
-  perf.addEvent("clean")
-  await rm(output, { recursive: true, force: true })
-  console.log(`Cleaned output directory \`${output}\` in ${perf.timeSince("clean")}`)
+  try {
+    perf.addEvent("clean")
+    await rm(tempOutput, { recursive: true, force: true })
+    argv.output = tempOutput
 
-  perf.addEvent("glob")
-  const allFiles = await glob("**/*.*", argv.directory, cfg.configuration.ignorePatterns)
-  const markdownPaths = allFiles.filter((fp) => fp.endsWith(".md")).sort()
-  console.log(
-    `Found ${markdownPaths.length} input files from \`${argv.directory}\` in ${perf.timeSince("glob")}`,
-  )
+    perf.addEvent("glob")
+    const allFiles = await glob("**/*.*", argv.directory, cfg.configuration.ignorePatterns)
+    const markdownPaths = allFiles.filter((fp) => fp.endsWith(".md")).sort()
+    console.log(
+      `Found ${markdownPaths.length} input files from \`${argv.directory}\` in ${perf.timeSince("glob")}`,
+    )
 
-  const filePaths = markdownPaths.map((fp) => joinSegments(argv.directory, fp) as FilePath)
-  ctx.allFiles = allFiles
-  ctx.allSlugs = allFiles.map((fp) => slugifyFilePath(fp as FilePath))
+    const filePaths = markdownPaths.map((fp) => joinSegments(argv.directory, fp) as FilePath)
+    ctx.allFiles = allFiles
+    ctx.allSlugs = allFiles.map((fp) => slugifyFilePath(fp as FilePath))
 
-  const parsedFiles = await parseMarkdown(ctx, filePaths)
-  const filteredContent = filterContent(ctx, parsedFiles)
+    parsedFiles = await parseMarkdown(ctx, filePaths)
+    const filteredContent = filterContent(ctx, parsedFiles)
 
-  updateDates(filteredContent)
+    updateDates(filteredContent)
 
-  await emitContent(ctx, filteredContent)
-  console.log(
-    styleText("green", `Done processing ${markdownPaths.length} files in ${perf.timeSince()}`),
-  )
-  release()
+    await emitContent(ctx, filteredContent)
+
+    perf.addEvent("swap")
+    await rm(finalOutput, { recursive: true, force: true })
+    await rename(tempOutput, finalOutput)
+    argv.output = finalOutput
+    console.log(`Cleaned and swapped output directory \`${finalOutput}\` in ${perf.timeSince("swap")}`)
+
+    console.log(
+      styleText("green", `Done processing ${markdownPaths.length} files in ${perf.timeSince()}`),
+    )
+  } catch (err) {
+    await rm(tempOutput, { recursive: true, force: true })
+    throw err
+  } finally {
+    release()
+  }
 
   if (argv.watch) {
     ctx.incremental = true
