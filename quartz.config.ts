@@ -77,6 +77,7 @@ const config: QuartzConfig = {
         keepBackground: false,
       }),
       Plugin.ObsidianFlavoredMarkdown({ enableInHtmlEmbed: false,  }),
+      Plugin.SecureCallouts(),
       Plugin.GitHubFlavoredMarkdown(),
       Plugin.LawLinker(),
       Plugin.AI(),
@@ -105,6 +106,7 @@ const config: QuartzConfig = {
       Plugin.NotFoundPage(),
       // Comment out CustomOgImages to speed up build time
       Plugin.CustomOgImages(),
+      Plugin.SecureCalloutsEmitter(),
     ],
   },
 }

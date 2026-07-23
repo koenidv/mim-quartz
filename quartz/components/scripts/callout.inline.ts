@@ -17,4 +17,27 @@ function setupCallout() {
   }
 }
 
-document.addEventListener("nav", setupCallout)
+async function setupSecureCallouts() {
+  const islands = document.querySelectorAll<HTMLElement>(".secure-callout-island")
+  for (const island of islands) {
+    const id = island.getAttribute("data-callout-id")
+    if (!id) continue
+
+    try {
+      const res = await fetch(`/api/secure-callouts/${id}`)
+      if (res.ok) {
+        const html = await res.text()
+        island.outerHTML = html
+        setupCallout()
+      }
+    } catch {
+      // Remain hidden on error or unauthorized response
+    }
+  }
+}
+
+document.addEventListener("nav", () => {
+  setupCallout()
+  setupSecureCallouts()
+})
+

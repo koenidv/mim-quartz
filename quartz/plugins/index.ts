@@ -46,11 +46,14 @@ export * from "./transformers"
 export * from "./filters"
 export * from "./emitters"
 
+import { SecureCalloutEntry } from "./transformers/secureCallouts"
+
 declare module "vfile" {
   // inserted in processors.ts
   interface DataMap {
     slug: FullSlug
     filePath: FilePath
     relativePath: FilePath
+    secureCallouts?: SecureCalloutEntry[]
   }
 }

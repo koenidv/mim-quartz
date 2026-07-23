@@ -104,6 +104,7 @@ app.use(async (req, res, next) => {
     reqPath === '/logout' || 
     reqPath === '/request-access' || 
     reqPath.startsWith('/admin') || 
+    reqPath.startsWith('/api/secure-callouts/') ||
     reqPath === '/unauthorized';
 
   const isPublicAsset = 
@@ -538,6 +539,41 @@ app.post('/admin/users/decline', async (req, res) => {
   const { email } = req.body;
   await pool.query('UPDATE users SET access_requested = false WHERE email = $1', [email]);
   res.redirect('/admin');
+});
+
+let secureCalloutManifest: Record<string, { emails: string[]; html: string }> = {};
+
+function loadSecureCallouts() {
+  try {
+    const manifestPath = path.join(publicDir, '.secure-callouts.json');
+    if (fs.existsSync(manifestPath)) {
+      secureCalloutManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    }
+  } catch (err) {
+    console.error('[Auth] Error loading secure callouts manifest:', err);
+  }
+}
+
+app.get('/api/secure-callouts/:id', (req, res) => {
+  loadSecureCallouts();
+
+  const callout = secureCalloutManifest[req.params.id];
+  if (!callout) {
+    return res.status(404).send('Not Found');
+  }
+
+  if (!req.isAuthenticated()) {
+    return res.status(401).send('Unauthorized');
+  }
+
+  const userEmail = (req.user as any)?.email?.toLowerCase();
+  const allowed = callout.emails.map(e => e.toLowerCase());
+
+  if (!userEmail || !allowed.includes(userEmail)) {
+    return res.status(403).send('Forbidden');
+  }
+
+  res.type('html').send(callout.html);
 });
 
 app.use(express.static(publicDir, { extensions: ['html'], index: 'index.html' }));

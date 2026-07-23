@@ -26,6 +26,7 @@ import { FilePath, pathToRoot, slugTag, slugifyFilePath } from "../../util/path"
 import { toHast } from "mdast-util-to-hast"
 import { toHtml } from "hast-util-to-html"
 import { capitalize } from "../../util/lang"
+import { toString } from "mdast-util-to-string"
 import { PluggableList } from "unified"
 
 export interface Options {
@@ -421,16 +422,41 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
 
               // find first line and callout content
               const [firstChild, ...calloutContent] = node.children
-              if (firstChild.type !== "paragraph" || firstChild.children[0]?.type !== "text") {
+              if (firstChild.type !== "paragraph" || firstChild.children.length === 0) {
                 return
               }
 
-              const text = firstChild.children[0].value
-              const restOfParagraph = firstChild.children.slice(1)
-              const [firstLine, ...remainingLines] = text.split("\n")
-              const remainingText = remainingLines.join("\n")
+              // Extract text of the first line across phrasing children (handles autolinked emails/formatting)
+              let firstLineText = ""
+              let newlineIdxInChild = -1
+              let childWithNewlineIdx = -1
 
-              const match = firstLine.match(calloutRegex)
+              for (let i = 0; i < firstChild.children.length; i++) {
+                const child = firstChild.children[i]
+                if (child.type === "text") {
+                  const nl = child.value.indexOf("\n")
+                  if (nl !== -1) {
+                    firstLineText += child.value.slice(0, nl)
+                    newlineIdxInChild = nl
+                    childWithNewlineIdx = i
+                    break
+                  } else {
+                    firstLineText += child.value
+                  }
+                } else if (child.type === "break" || (child.type === "html" && child.value === "<br />")) {
+                  childWithNewlineIdx = i
+                  newlineIdxInChild = 0
+                  break
+                } else {
+                  firstLineText += toString(child)
+                }
+              }
+
+              if (childWithNewlineIdx === -1) {
+                childWithNewlineIdx = firstChild.children.length
+              }
+
+              const match = firstLineText.match(calloutRegex)
               if (match && match.input) {
                 const [calloutDirective, typeString, calloutMetaData, collapseChar] = match
                 const calloutType = canonicalizeCallout(typeString.toLowerCase())
@@ -441,18 +467,17 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
                 // Partition the rest of the paragraph into title and content
                 const titleChildren: PhrasingContent[] = []
                 const inlineContentChildren: PhrasingContent[] = []
-                let foundNewline = remainingLines.length > 0
 
-                for (const child of restOfParagraph) {
-                  if (foundNewline) {
-                    inlineContentChildren.push(child)
-                  } else if (
-                    child.type === "break" ||
-                    (child.type === "html" && child.value === "<br />")
-                  ) {
-                    foundNewline = true
-                  } else {
-                    titleChildren.push(child)
+                if (childWithNewlineIdx < firstChild.children.length) {
+                  const child = firstChild.children[childWithNewlineIdx]
+                  if (child.type === "text" && newlineIdxInChild !== -1) {
+                    const rem = child.value.slice(newlineIdxInChild + 1)
+                    if (rem.length > 0) {
+                      inlineContentChildren.push({ type: "text", value: rem })
+                    }
+                  }
+                  for (let i = childWithNewlineIdx + 1; i < firstChild.children.length; i++) {
+                    inlineContentChildren.push(firstChild.children[i])
                   }
                 }
 
@@ -487,17 +512,10 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
                 const blockquoteContent: (BlockContent | DefinitionContent)[] = [titleHtml]
                 const actualCalloutContent = [...calloutContent]
 
-                // Add remaining text and children from the first paragraph to content
-                const firstParagraphContent: PhrasingContent[] = []
-                if (remainingText.length > 0) {
-                  firstParagraphContent.push({ type: "text", value: remainingText })
-                }
-                firstParagraphContent.push(...inlineContentChildren)
-
-                if (firstParagraphContent.length > 0) {
+                if (inlineContentChildren.length > 0) {
                   actualCalloutContent.unshift({
                     type: "paragraph",
-                    children: firstParagraphContent,
+                    children: inlineContentChildren,
                   })
                 }
 
