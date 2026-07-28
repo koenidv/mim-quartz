@@ -23,7 +23,7 @@ const config: QuartzConfig = {
     ignorePatterns: ["**/private", "**/private/**", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "agents.md", "Session Note *"],
     defaultDateType: "modified",
     accessControl: {
-      protectedRoutes: ["**/Slides/**", "**/videos/**"],
+      protectedRoutes: ["**/Slides/**", "**/Resources/**", "**/videos/**"],
     },
     theme: {
       fontOrigin: "googleFonts",
