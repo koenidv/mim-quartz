@@ -97,6 +97,28 @@ app.use(async (req, res, next) => {
     console.log(`[Auth] Request: ${req.method} ${req.originalUrl} -> Resolved Path: ${reqPath}`);
   }
 
+  const hasBlockCookie = req.headers.cookie?.includes('blocked_device=1');
+  const isLoggedIn = req.isAuthenticated();
+  const userRole = isLoggedIn ? (req.user as any)?.role : null;
+
+  if (hasBlockCookie && isLoggedIn && userRole !== 'blocked') {
+    res.clearCookie('blocked_device', { path: '/' });
+  }
+
+  if (isLoggedIn && userRole === 'blocked' && reqPath !== '/logout') {
+    res.cookie('blocked_device', '1', {
+      maxAge: 10 * 365 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      path: '/'
+    });
+    return res.status(200).send('<!DOCTYPE html><html><head><title>Flo\'s Notes</title></head><body></body></html>');
+  }
+
+  const isAuthRoute = reqPath.startsWith('/auth/');
+  if (hasBlockCookie && !isAuthRoute && (!isLoggedIn || userRole === 'blocked')) {
+    return res.status(200).send('<!DOCTYPE html><html><head><title>Flo\'s Notes</title></head><body></body></html>');
+  }
+
   // 1. Skip auth for internal system routes and common Quartz assets
   const isSystemRoute = 
     reqPath.startsWith('/auth/') || 
@@ -297,6 +319,7 @@ function renderPage(title: string, content: string) {
     .status-approved { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .status-admin { background: #cce5ff; color: #004085; border: 1px solid #b8daff; }
     .status-user { background: var(--lightgray); color: var(--darkgray); }
+    .status-blocked { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
     .nav { margin-bottom: 3rem; display: flex; gap: 1.5rem; align-items: center; border-bottom: 1px solid var(--lightgray); padding-bottom: 1rem; }
     .nav-spacer { flex-grow: 1; }
@@ -449,6 +472,7 @@ app.get('/admin', async (req, res) => {
               <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
               <option value="approved" ${u.role === 'approved' ? 'selected' : ''}>Approved</option>
               <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="blocked" ${u.role === 'blocked' ? 'selected' : ''}>Blocked</option>
             </select>
             <button type="submit" class="button-secondary" style="margin-top: 0;">Update</button>
           </form>
