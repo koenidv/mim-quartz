@@ -10,6 +10,8 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import { minimatch } from 'minimatch';
 import { exec } from 'child_process';
+import crypto from 'crypto';
+import { PostHog } from 'posthog-node';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +34,13 @@ function getOutputDir() {
 const publicDir = path.resolve(projectRoot, getOutputDir());
 
 dotenv.config();
+
+const phClient = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY || 'dummy_key', { host: 'https://eu.i.posthog.com' });
+
+function getUserId(email: string): string {
+  if (!email) return 'anonymous';
+  return crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
+}
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const PgSession = connectPgSimple(session);
@@ -159,6 +168,27 @@ app.use(async (req, res, next) => {
   if (isProtected) {
     if (!req.isAuthenticated()) {
       console.log(`[Auth] Protected route hit (unauthenticated): ${req.originalUrl}. Setting returnTo and redirecting to login.`);
+      
+      const cookies = req.headers.cookie;
+      let distinctId = 'anonymous';
+      if (cookies && cookies.includes('ph_')) {
+        try {
+          const match = cookies.match(/ph_[^_]+_posthog=([^;]+)/);
+          if (match) {
+            const phData = JSON.parse(decodeURIComponent(match[1]));
+            distinctId = phData.distinct_id || 'anonymous';
+          }
+        } catch (e) {
+          console.error('Failed to parse PostHog cookie', e);
+        }
+      }
+      
+      phClient.capture({
+        distinctId: distinctId,
+        event: 'protected_page_blocked',
+        properties: { path: req.originalUrl }
+      });
+
       (req.session as any).returnTo = req.originalUrl;
       return req.session.save((err) => {
         if (err) console.error('[Auth] Session save error in middleware:', err);
@@ -188,6 +218,12 @@ app.use(async (req, res, next) => {
       
       return res.status(403).send(renderPage('Flo\'s Notes: Access Pending', `<div class="card">${content}</div>`));
     }
+
+    phClient.capture({
+      distinctId: getUserId(user.email),
+      event: 'protected_resource_accessed',
+      properties: { path: req.originalUrl }
+    });
   }
 
   next();
@@ -426,6 +462,13 @@ app.post('/request-access', async (req, res) => {
     if (!user.access_requested) {
       await pool.query('UPDATE users SET access_requested = true WHERE email = $1', [user.email]);
       user.access_requested = true;
+      
+      phClient.capture({
+        distinctId: getUserId(user.email),
+        event: 'access_requested',
+        properties: { role: user.role }
+      });
+
       await notifyAdminOfAccessRequest();
     }
   }
@@ -598,6 +641,19 @@ app.get('/api/secure-callouts/:id', (req, res) => {
   }
 
   res.type('html').send(callout.html);
+});
+
+app.get('/api/me', (req, res) => {
+  if (req.isAuthenticated()) {
+    const user = req.user as any;
+    res.json({
+      loggedIn: true,
+      userId: getUserId(user.email),
+      role: user.role
+    });
+  } else {
+    res.json({ loggedIn: false });
+  }
 });
 
 app.use(express.static(publicDir, { extensions: ['html'], index: 'index.html' }));
