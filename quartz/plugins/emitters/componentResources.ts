@@ -166,11 +166,17 @@ function addGlobalPageResources(ctx: BuildCtx, componentResources: ComponentReso
         defaults: '${cfg.analytics.defaults ?? "2026-05-30"}',
         person_profiles: '${cfg.analytics.personProfiles ?? "identified_only"}',
         capture_pageview: false,
+        capture_pageleave: true,
       });
       fetch('/api/me').then(r=>r.json()).then(d=>{
         if(d.loggedIn) { posthog.identify(d.userId, { role: d.role }); }
       }).catch(console.error);
+      let isFirstNav = true;
       document.addEventListener('nav', () => {
+        if (!isFirstNav) {
+          posthog.capture('$pageleave');
+        }
+        isFirstNav = false;
         posthog.capture('$pageview', { path: location.pathname });
       })\`
 
