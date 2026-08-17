@@ -29,6 +29,9 @@ export type Analytics =
       provider: "posthog"
       apiKey: string
       host?: string
+      uiHost?: string
+      defaults?: string
+      personProfiles?: "identified_only" | "always"
     }
   | {
       provider: "tinylytics"

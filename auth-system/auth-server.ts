@@ -35,7 +35,7 @@ const publicDir = path.resolve(projectRoot, getOutputDir());
 
 dotenv.config();
 
-const phClient = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY || 'dummy_key', { host: 'https://eu.i.posthog.com' });
+const phClient = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY || 'dummy_key', { host: 'https://igel.koeni.dev' });
 
 function getUserId(email: string): string {
   if (!email) return 'anonymous';

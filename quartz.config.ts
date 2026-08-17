@@ -15,7 +15,10 @@ const config: QuartzConfig = {
     analytics: {
       provider: "posthog",
       apiKey: process.env.NEXT_PUBLIC_POSTHOG_KEY || "",
-      host: "https://eu.i.posthog.com",
+      host: "https://igel.koeni.dev",
+      uiHost: "https://eu.posthog.com",
+      defaults: "2026-05-30",
+      personProfiles: "identified_only",
     },
     outputDir: "public/out",
     locale: "en-US",
