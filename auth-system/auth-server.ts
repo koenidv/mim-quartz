@@ -215,6 +215,17 @@ app.use(async (req, res, next) => {
           await pool.query('UPDATE users SET access_requested = true WHERE email = $1', [user.email]);
           user.access_requested = true;
           console.log(`[Auth] Automatically requested access for ${user.email}`);
+
+          phClient.capture({
+            distinctId: getUserId(user.email),
+            event: 'access_requested',
+            properties: {
+              role: user.role,
+              automatic: true,
+              path: req.originalUrl
+            }
+          });
+
           await notifyAdminOfAccessRequest();
         } catch (err) {
           console.error('[Auth] Error automatically requesting access:', err);
@@ -522,7 +533,10 @@ app.post('/request-access', async (req, res) => {
       phClient.capture({
         distinctId: getUserId(user.email),
         event: 'access_requested',
-        properties: { role: user.role }
+        properties: {
+          role: user.role,
+          automatic: false
+        }
       });
 
       await notifyAdminOfAccessRequest();
