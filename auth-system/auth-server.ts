@@ -183,10 +183,19 @@ app.use(async (req, res, next) => {
         }
       }
       
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+      const referer = req.headers['referer'];
+
       phClient.capture({
         distinctId: distinctId,
         event: 'protected_page_blocked',
-        properties: { path: req.originalUrl }
+        properties: {
+          path: req.originalUrl,
+          $user_agent: userAgent,
+          $ip: clientIp,
+          referer: referer
+        }
       });
 
       (req.session as any).returnTo = req.originalUrl;
@@ -219,10 +228,29 @@ app.use(async (req, res, next) => {
       return res.status(403).send(renderPage('Flo\'s Notes: Access Pending', `<div class="card">${content}</div>`));
     }
 
+    const userId = getUserId(user.email);
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    const referer = req.headers['referer'];
+
+    phClient.identify({
+      distinctId: userId,
+      properties: {
+        role: user.role,
+        access_requested: user.access_requested
+      }
+    });
+
     phClient.capture({
-      distinctId: getUserId(user.email),
+      distinctId: userId,
       event: 'protected_resource_accessed',
-      properties: { path: req.originalUrl }
+      properties: {
+        path: req.originalUrl,
+        role: user.role,
+        $user_agent: userAgent,
+        $ip: clientIp,
+        referer: referer
+      }
     });
   }
 
@@ -426,13 +454,41 @@ app.get('/auth/google/callback', (req, res, next) => {
     console.error('[Auth] Error parsing state:', e);
   }
 
-  passport.authenticate('google', { failureRedirect: '/unauthorized' }, (err, user, info) => {
+    passport.authenticate('google', { failureRedirect: '/unauthorized' }, (err, user, info) => {
     if (err) return next(err);
     if (!user) return res.redirect('/unauthorized');
     
     req.logIn(user, (err) => {
       if (err) return next(err);
       
+      const userId = getUserId(user.email);
+      phClient.identify({
+        distinctId: userId,
+        properties: {
+          role: user.role,
+          access_requested: user.access_requested
+        }
+      });
+
+      // Alias anonymous PostHog cookie ID to identified user ID if available
+      const cookies = req.headers.cookie;
+      if (cookies && cookies.includes('ph_')) {
+        try {
+          const match = cookies.match(/ph_[^_]+_posthog=([^;]+)/);
+          if (match) {
+            const phData = JSON.parse(decodeURIComponent(match[1]));
+            if (phData.distinct_id && phData.distinct_id !== userId) {
+              phClient.alias({
+                distinctId: userId,
+                alias: phData.distinct_id
+              });
+            }
+          }
+        } catch (e) {
+          console.error('[Auth] Failed to parse PostHog cookie for alias:', e);
+        }
+      }
+
       const returnTo = stateReturnTo || (req.session as any).returnTo || '/';
       console.log(`[Auth] Callback success. stateReturnTo: ${stateReturnTo}, sessionReturnTo: ${(req.session as any).returnTo}. Redirecting to: ${returnTo}`);
       
