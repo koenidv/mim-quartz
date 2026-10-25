@@ -23,7 +23,7 @@ const config: QuartzConfig = {
     outputDir: "public/out",
     locale: "en-US",
     baseUrl: "management.koeni.dev",
-    ignorePatterns: ["**/private", "**/private/**", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "agents.md", "Session Note *"],
+    ignorePatterns: ["**/private", "**/private/**", "eep", "_templates", ".obsidian", ".*", "M.Sc. Management at TUM.md", "Module Considerations.md", "agents.md", "Session Note *", "Case Study Seminar", "Smart Start Seminar"],
     defaultDateType: "modified",
     accessControl: {
       protectedRoutes: ["**/Slides/**", "**/Resources/**", "**/videos/**"],
