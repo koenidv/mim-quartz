@@ -51,9 +51,6 @@ function shouldTrackPlainEmail(): boolean {
 function getUserId(email: string): string {
   if (!email) return 'anonymous';
   const cleanEmail = email.toLowerCase().trim();
-  if (shouldTrackPlainEmail()) {
-    return cleanEmail;
-  }
   return crypto.createHash('sha256').update(cleanEmail).digest('hex');
 }
 
@@ -265,7 +262,7 @@ app.use(async (req, res, next) => {
       properties: {
         role: user.role,
         access_requested: user.access_requested,
-        ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
+        ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim(), $set: { email: user.email.toLowerCase().trim() } } : {})
       }
     });
 
@@ -496,7 +493,7 @@ app.get('/auth/google/callback', (req, res, next) => {
         properties: {
           role: user.role,
           access_requested: user.access_requested,
-          ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
+          ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim(), $set: { email: user.email.toLowerCase().trim() } } : {})
         }
       });
 

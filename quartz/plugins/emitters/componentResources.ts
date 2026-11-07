@@ -178,7 +178,10 @@ function addGlobalPageResources(ctx: BuildCtx, componentResources: ComponentReso
         fetch('/api/me').then(r=>r.json()).then(d=>{
           if(d.loggedIn) {
             const props = { role: d.role };
-            if (d.email) { props.email = d.email; }
+            if (d.email) {
+              props.email = d.email;
+              props.$set = { email: d.email };
+            }
             posthog.identify(d.userId, props);
           }
         }).catch(console.error);
