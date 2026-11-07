@@ -37,9 +37,24 @@ dotenv.config();
 
 const phClient = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY || 'dummy_key', { host: 'https://igel.koeni.dev' });
 
+function shouldTrackPlainEmail(): boolean {
+  const val = (
+    process.env.POSTHOG_PLAIN_EMAIL ||
+    process.env.POSTHOG_TRACK_PLAIN_EMAIL ||
+    process.env.POSTHOG_PLAIN_EMAILS ||
+    process.env.POSTHOG_TRACK_PLAIN_EMAILS ||
+    ''
+  ).toLowerCase().trim();
+  return val === 'true' || val === '1' || val === 'yes';
+}
+
 function getUserId(email: string): string {
   if (!email) return 'anonymous';
-  return crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
+  const cleanEmail = email.toLowerCase().trim();
+  if (shouldTrackPlainEmail()) {
+    return cleanEmail;
+  }
+  return crypto.createHash('sha256').update(cleanEmail).digest('hex');
 }
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -222,7 +237,8 @@ app.use(async (req, res, next) => {
             properties: {
               role: user.role,
               automatic: true,
-              path: req.originalUrl
+              path: req.originalUrl,
+              ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
             }
           });
 
@@ -248,7 +264,8 @@ app.use(async (req, res, next) => {
       distinctId: userId,
       properties: {
         role: user.role,
-        access_requested: user.access_requested
+        access_requested: user.access_requested,
+        ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
       }
     });
 
@@ -260,7 +277,8 @@ app.use(async (req, res, next) => {
         role: user.role,
         $user_agent: userAgent,
         $ip: clientIp,
-        referer: referer
+        referer: referer,
+        ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
       }
     });
   }
@@ -477,7 +495,8 @@ app.get('/auth/google/callback', (req, res, next) => {
         distinctId: userId,
         properties: {
           role: user.role,
-          access_requested: user.access_requested
+          access_requested: user.access_requested,
+          ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
         }
       });
 
@@ -535,7 +554,8 @@ app.post('/request-access', async (req, res) => {
         event: 'access_requested',
         properties: {
           role: user.role,
-          automatic: false
+          automatic: false,
+          ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
         }
       });
 
@@ -719,7 +739,8 @@ app.get('/api/me', (req, res) => {
     res.json({
       loggedIn: true,
       userId: getUserId(user.email),
-      role: user.role
+      role: user.role,
+      ...(shouldTrackPlainEmail() ? { email: user.email.toLowerCase().trim() } : {})
     });
   } else {
     res.json({ loggedIn: false });

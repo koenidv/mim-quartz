@@ -176,7 +176,11 @@ function addGlobalPageResources(ctx: BuildCtx, componentResources: ComponentReso
           capture_pageleave: true,
         });
         fetch('/api/me').then(r=>r.json()).then(d=>{
-          if(d.loggedIn) { posthog.identify(d.userId, { role: d.role }); }
+          if(d.loggedIn) {
+            const props = { role: d.role };
+            if (d.email) { props.email = d.email; }
+            posthog.identify(d.userId, props);
+          }
         }).catch(console.error);
         let isFirstNav = true;
         document.addEventListener('nav', () => {
